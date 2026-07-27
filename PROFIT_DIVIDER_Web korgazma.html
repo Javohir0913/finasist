@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PROFIT DIVIDER — Kunlik moliyaviy hisobot</title>
+<style>
+:root{
+  --ink:#12161c; --ink-2:#39424f; --ink-3:#6b7684;
+  --paper:#f7f6f3; --card:#ffffff; --line:#dfdcd4;
+  --accent:#1c5d4a; --accent-2:#2a8368; --warn:#a8541c; --bad:#9b2c2c;
+  --grid:#eeece6;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);
+  font:14px/1.45 "Inter","Segoe UI",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+h1,h2,h3{margin:0;font-weight:640;letter-spacing:-.015em}
+.mono{font-family:"JetBrains Mono",ui-monospace,"SF Mono",Consolas,monospace;font-variant-numeric:tabular-nums}
+
+header{background:var(--ink);color:#fff;padding:14px 20px;display:flex;
+  align-items:center;gap:18px;flex-wrap:wrap;position:sticky;top:0;z-index:50}
+header .brand{font-size:16px;font-weight:700;letter-spacing:.02em}
+header .brand span{color:#8fd4bb;font-weight:500}
+header .spacer{flex:1}
+header select,header input{background:#212934;color:#fff;border:1px solid #39424f;
+  border-radius:7px;padding:7px 10px;font-size:13px;font-family:inherit}
+
+nav{display:flex;gap:2px;background:var(--card);border-bottom:1px solid var(--line);
+  padding:0 12px;overflow-x:auto;position:sticky;top:57px;z-index:40}
+nav button{background:none;border:0;border-bottom:2.5px solid transparent;padding:12px 14px;
+  font:inherit;font-size:13px;font-weight:560;color:var(--ink-3);cursor:pointer;white-space:nowrap}
+nav button:hover{color:var(--ink)}
+nav button.on{color:var(--accent);border-bottom-color:var(--accent)}
+
+main{padding:20px;max-width:1500px;margin:0 auto}
+.page{display:none} .page.on{display:block}
+.head{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-bottom:16px}
+.head h2{font-size:20px}
+.head p{margin:2px 0 0;color:var(--ink-3);font-size:13px}
+.head .spacer{flex:1}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:11px;
+  padding:16px;margin-bottom:16px}
+.card>h3{font-size:13px;text-transform:uppercase;letter-spacing:.07em;
+  color:var(--ink-3);margin-bottom:12px;font-weight:640}
+
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:12px;margin-bottom:18px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:14px 16px;
+  border-left:3px solid var(--accent)}
+.kpi .l{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);font-weight:600}
+.kpi .v{font-size:21px;font-weight:680;margin-top:5px;letter-spacing:-.02em}
+.kpi .s{font-size:12px;color:var(--ink-3);margin-top:2px}
+.kpi.neg{border-left-color:var(--bad)} .kpi.neg .v{color:var(--bad)}
+.kpi.pos .v{color:var(--accent)}
+
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:var(--grid);text-align:left;padding:8px 10px;font-weight:640;font-size:11.5px;
+  text-transform:uppercase;letter-spacing:.04em;color:var(--ink-2);
+  border-bottom:1px solid var(--line);white-space:nowrap;position:sticky;top:0}
+td{padding:7px 10px;border-bottom:1px solid var(--grid);vertical-align:middle}
+tbody tr:hover{background:#fbfaf7}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums;
+  font-family:ui-monospace,"SF Mono",Consolas,monospace}
+tr.total{background:#f0f4f2;font-weight:680}
+tr.total td{border-top:1.5px solid var(--accent);border-bottom:0}
+tr.grp td{background:#eef1f0;font-weight:660;font-size:12px;
+  text-transform:uppercase;letter-spacing:.04em;color:var(--accent)}
+.scroll{overflow:auto;max-height:66vh;border:1px solid var(--line);border-radius:9px}
+.scroll table{font-size:12.5px}
+
+.btn{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:9px 15px;
+  font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.btn:hover{background:var(--accent-2)}
+.btn.g{background:#fff;color:var(--ink-2);border:1px solid var(--line)}
+.btn.g:hover{background:var(--grid)}
+.btn.r{background:#fff;color:var(--bad);border:1px solid #e4c4c4}
+.btn.sm{padding:5px 10px;font-size:12px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+.form{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:11px}
+.f label{display:block;font-size:11px;font-weight:640;color:var(--ink-2);
+  margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em}
+.f input,.f select{width:100%;padding:8px 10px;border:1px solid var(--line);
+  border-radius:7px;font:inherit;font-size:13px;background:#fff}
+.f input:focus,.f select:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:var(--accent)}
+.f input[readonly]{background:var(--grid);color:var(--ink-2)}
+
+.pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:640}
+.pill.in{background:#e0f0e8;color:#1a6b4f} .pill.out{background:#fae5dd;color:#9b4a20}
+.empty{padding:36px;text-align:center;color:var(--ink-3);font-size:13px}
+.hint{font-size:12px;color:var(--ink-3);margin-top:6px}
+.bar{height:7px;background:var(--grid);border-radius:4px;overflow:hidden;min-width:60px}
+.bar>i{display:block;height:100%;background:var(--accent);border-radius:4px}
+.tag{font-size:11px;padding:1px 6px;background:var(--grid);border-radius:4px;color:var(--ink-2)}
+@media(max-width:640px){main{padding:12px}.kpi .v{font-size:18px}}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">PROFIT DIVIDER <span>· Moliyaviy boshqaruv</span></div>
+  <div class="spacer"></div>
+  <select id="gMonth" onchange="setMonth()"></select>
+  <input id="gRate" type="number" value="12650" step="1" title="1 USD = ? UZS" style="width:110px">
+  <button class="btn g" onclick="doExport()">Excel</button>
+</header>
+
+<nav id="nav"></nav>
+<main id="main"></main>
+<script>
+const REF={"expenseCodes":[{"code":"2010","name":"Производственные расходы"},{"code":"2011","name":"Стоимость приобретенных ТМЗ"},{"code":"2012","name":"Зарплата производственного персонала"},{"code":"2013","name":"Налог на доходы физических лиц (НДФЛ 11,9%)"},{"code":"2014","name":"Социальный налог (ЕСП 12%)"},{"code":"2015","name":"ИНПС (0,1%)"},{"code":"2016","name":"Таможенное оформление"},{"code":"2017","name":"Декларирование"},{"code":"2018","name":"Транспортировка"},{"code":"2019","name":"Погрузочные и разгрузочные работы"},{"code":"2020","name":"Хранение"},{"code":"2021","name":"Транспортные расходы (аренда, бензин и такси)"},{"code":"2022","name":"Сертификация, экспертиза, лабораторные исследования"},{"code":"2023","name":"Питание для рабочих"},{"code":"2024","name":"Спецодежда, инструменты и хозяйственные товары"},{"code":"2025","name":"Запчасти Погрузчика"},{"code":"2026","name":"Топливо и ГСМ (Погрузчик)"},{"code":"2027","name":"Электроэнергия"},{"code":"2028","name":"Теплоэнергия"},{"code":"2029","name":"Природный газ"},{"code":"2030","name":"Холодная и горячая вода"},{"code":"2031","name":"Очистка скважин и вывоз мусора"},{"code":"2032","name":"Затраты, связанные с производственными объектами"},{"code":"2033","name":"Потери, порчи и недостачи материальных ценностей в сфере производства"},{"code":"2034","name":"Прочие наличные выплаты"},{"code":"2035","name":"Другие производственные расходы"},{"code":"2036","name":"обратная доставка"},{"code":"2037","name":"Премии и бонусы с водитель"},{"code":"2038","name":"Затраты на спецтехника"},{"code":"2039","name":"Запчасти БРУ"},{"code":"9410","name":"Расходы по реализации"},{"code":"94101","name":"Зарплата отдела продаж и маркетинга"},{"code":"94102","name":"Зарплата водителей отдела продаж"},{"code":"94103","name":"Налог на доходы физических лиц (НДФЛ 11,9%)"},{"code":"94104","name":"Социальный налог (ЕСП 12%)"},{"code":"94105","name":"ИНПС (0,1%)"},{"code":"94106","name":"Аренда помещения (магазинов и шоурумов)"},{"code":"94107","name":"Рекламные и маркетинговые услуги"},{"code":"94108","name":"Печатные и рекламные материалы"},{"code":"94109","name":"Премии и бонусы с водитель (Миксер)"},{"code":"94110","name":"Командировки"},{"code":"94111","name":"Дорожные расходы"},{"code":"94112","name":"Специальная одежда для отдела продаж"},{"code":"94113","name":"Затраты на автомобили"},{"code":"94114","name":"Сторонние транспортные услуги"},{"code":"94115","name":"Скидка"},{"code":"94116","name":"Биржевые расходы (УзРТСБ)"},{"code":"94117","name":"Другие расходы по реализации"},{"code":"94118","name":"Затраты на спецтехника"},{"code":"94119","name":"Премии и бонусы Продажа"},{"code":"9420","name":"Административные расходы"},{"code":"94201","name":"Зарплата административного персонала"},{"code":"94202","name":"Налог на доходы физических лиц (НДФЛ 11,9%)"},{"code":"94203","name":"Социальный налог (ЕСП 12%)"},{"code":"94204","name":"ИНПС 0,1%"},{"code":"94205","name":"Аренда офиса"},{"code":"94206","name":"Премии для персонала"},{"code":"94207","name":"Питание административного персонала"},{"code":"94208","name":"Канцелярские и хозяйственные товары"},{"code":"94209","name":"Расходы на бытовую и оргтехнику, IT продукты"},{"code":"94210","name":"Дорожные расходы административного персонала"},{"code":"94211","name":"Командировочные и гостиничные расходы"},{"code":"94212","name":"Представительские расходы"},{"code":"94213","name":"Интернет и телефония"},{"code":"94214","name":"Наличные выплаты посредникам"},{"code":"94215","name":"Медицинские услуги и медикаменты"},{"code":"94216","name":"Расходы по аренде (квартиры, помещения и другие)"},{"code":"94217","name":"Специальная одежда"},{"code":"94218","name":"Покупка мебели"},{"code":"94219","name":"Другие административные расходы"},{"code":"94220","name":"Дурабле бетон ходимларини  рағбатлантриш"},{"code":"9430","name":"Прочие операционные расходы"},{"code":"94301","name":"Информационные, консалтинговые и юридические услуги"},{"code":"94302","name":"Банковские услуги (комиссионные, пени, штрафы)"},{"code":"94303","name":"Прочие сторонние услуги (в т.ч. экспертиза, техническое сопровождение и др.)"},{"code":"94304","name":"Коммунальные услуги (вода, электроэнергия, газ)"},{"code":"94305","name":"Обучение сотрудников"},{"code":"94306","name":"Наличные выплаты посредникам"},{"code":"94307","name":"Страховые платежи"},{"code":"94308","name":"Благотворительная помощь"},{"code":"94309","name":"Благотворительные мероприятия (худойи, туйона, суюнчи, эхсон и другие)"},{"code":"94310","name":"Утеря товара"},{"code":"94311","name":"Списание непригодных товаров"},{"code":"94312","name":"Списание сомнительных долгов"},{"code":"94313","name":"Недостача денежных средств"},{"code":"94314","name":"Ремонт основных средств"},{"code":"94315","name":"Мелкие ремонтные работы"},{"code":"94316","name":"Сезонные расходы"},{"code":"94317","name":"Строительство производственных объектов"},{"code":"94318","name":"Прочие прыбль"},{"code":"94319","name":"Налог на прибыль"},{"code":"94320","name":"Налог на дивиденды"},{"code":"94321","name":"НДС"},{"code":"94322","name":"Налог на имущество с юридических лиц"},{"code":"94323","name":"Прочие налоги"}],"cashflowCodes":[{"code":"9010","name":"Поступления от реализации готовой продукции и предоставления услуг, в т.ч.:"},{"code":"9011","name":"Поступления от предприятий"},{"code":"9012","name":"Поступления от предприятий"},{"code":"9013","name":"Поступления от других предприятий"},{"code":"5500","name":"Прочие поступления"},{"code":"5530","name":"Блокировка денежных средств для конвертации"},{"code":"5531","name":"Переброска денежных средств"},{"code":"5532","name":"Возврат ошибочно перечисленных денежных средств"},{"code":"5533","name":"Зарплата производственного персонала"},{"code":"5534","name":"ЖБИ ни счёти"},{"code":"5535","name":"Брусчатка ни счети"},{"code":"5536","name":"Дробилка"},{"code":"5537","name":"DMC реклама счети (2020 дан 2017 га)"},{"code":"5538","name":"Топливо"},{"code":"2010","name":"Производственные расходы"},{"code":"2011","name":"Стоимость приобретенных ТМЗ"},{"code":"2012","name":"Зарплата производственного персонала"},{"code":"2013","name":"Налог на доходы физических лиц (НДФЛ 11,9%)"},{"code":"2014","name":"Социальный налог (ЕСП 12%)"},{"code":"2015","name":"ИНПС (0,1%)"},{"code":"2016","name":"Ремонт основных средств дробилки"},{"code":"2017","name":"Ремонт основных средств"},{"code":"2018","name":"Транспортировка"},{"code":"2019","name":"Солярка"},{"code":"2020","name":"Хранение"},{"code":"2021","name":"Транспортные расходы (аренда, бензин и такси)"},{"code":"2022","name":"Сертификация, экспертиза, лабораторные исследования"},{"code":"2023","name":"Питание для рабочих"},{"code":"2024","name":"Спецодежда, инструменты и хозяйственные товары"},{"code":"2025","name":"Запчасти (дробилки)"},{"code":"2026","name":"Топливо и ГСМ"},{"code":"2027","name":"Электроэнергия"},{"code":"2028","name":"Теплоэнергия"},{"code":"2029","name":"Природный газ"},{"code":"2030","name":"Холодная и горячая вода"},{"code":"2031","name":"Очистка скважин и вывоз мусора"},{"code":"2032","name":"Затраты, связанные с производственными объектами"},{"code":"2033","name":"Потери, порчи и недостачи материальных ценностей в сфере производства"},{"code":"2034","name":"Прочие наличные выплаты"},{"code":"2035","name":"Другие производственные расходы"},{"code":"2036","name":"обратная доставка"},{"code":"2037","name":"Премии и бонусы с водитель"},{"code":"2038","name":"Затраты на спецтехника"},{"code":"2039","name":"Запчасти БРУ"},{"code":"9410","name":"Расходы по реализации"},{"code":"94101","name":"Зарплата отдела продаж и маркетинга"},{"code":"94102","name":"Зарплата водителей отдела продаж"},{"code":"94103","name":"Налог на доходы физических лиц (НДФЛ 11,9%)"},{"code":"94104","name":"Социальный налог (ЕСП 12%)"},{"code":"94105","name":"ИНПС (0,1%)"},{"code":"94106","name":"Аренда помещения (магазинов и шоурумов)"},{"code":"94107","name":"Рекламные и маркетинговые услуги"},{"code":"94108","name":"Печатные и рекламные материалы"},{"code":"94109","name":"Премии и бонусы с продаж"},{"code":"94110","name":"Командировки"},{"code":"94111","name":"Дорожные расходы"},{"code":"94112","name":"Специальная одежда для отдела продаж"},{"code":"94113","name":"Затраты на автомобили"},{"code":"94114","name":"Сторонние транспортные услуги"},{"code":"94115","name":"Наличные выплаты посредникам"},{"code":"94116","name":"Биржевые расходы (УзРТСБ)"},{"code":"94117","name":"Другие расходы по реализации"},{"code":"94118","name":"Затраты на спецтехника"},{"code":"9420","name":"Административные расходы"},{"code":"94201","name":"Зарплата административного персонала"},{"code":"94202","name":"Налог на доходы физических лиц (НДФЛ 11,9%)"},{"code":"94203","name":"Социальный налог (ЕСП 12%)"},{"code":"94204","name":"ИНПС 0,1%"},{"code":"94205","name":"Аренда офиса"},{"code":"94206","name":"Премии для персонала"},{"code":"94207","name":"Питание  персонала"},{"code":"94208","name":"Канцелярские и хозяйственные товары"},{"code":"94209","name":"Расходы на бытовую и оргтехнику, IT продукты"},{"code":"94210","name":"Дорожные расходы административного персонала"},{"code":"94211","name":"Командировочные и гостиничные расходы"},{"code":"94212","name":"Представительские расходы"},{"code":"94213","name":"Интернет и телефония"},{"code":"94214","name":"Наличные выплаты посредникам"},{"code":"94215","name":"Медицинские услуги и медикаменты"},{"code":"94216","name":"Расходы по аренде (квартиры, помещения и другие)"},{"code":"94217","name":"Специальная одежда"},{"code":"94218","name":"Покупка мебели"},{"code":"94219","name":"Другие административные расходы"},{"code":"9430","name":"Прочие операционные расходы"},{"code":"94301","name":"Информационные, консалтинговые и юридические услуги"},{"code":"94302","name":"Банковские услуги (комиссионные, пени, штрафы)"},{"code":"94303","name":"Прочие сторонние услуги (в т.ч. экспертиза, техническое сопровождение и др.)"},{"code":"94304","name":"Коммунальные услуги (вода, электроэнергия, газ)"},{"code":"94305","name":"Обучение сотрудников"},{"code":"94306","name":"Наличные выплаты посредникам"},{"code":"94307","name":"Страховые платежи"},{"code":"94308","name":"Благотворительная помощь"},{"code":"94309","name":"Благотворительные мероприятия (худойи, туйона, суюнчи, эхсон и другие)"},{"code":"94310","name":"Дотсавка (запчастей)"},{"code":"94311","name":"Списание непригодных товаров"},{"code":"94312","name":"Списание сомнительных долгов"},{"code":"94313","name":"Недостача денежных средств"},{"code":"94314","name":"Ремонт основных средств"},{"code":"94315","name":"Мелкие ремонтные работы"},{"code":"94316","name":"Сезонные расходы"},{"code":"94317","name":"Строительство производственных объектов"},{"code":"94318","name":"Другие административные расходы"},{"code":"94319","name":"Налог на прибыль"},{"code":"94320","name":"Налог на дивиденды"},{"code":"94321","name":"НДС"},{"code":"94322","name":"Земельный налог"},{"code":"94323","name":"Прочие налоги"},{"code":"9610","name":"Финансовые расходы"},{"code":"9611","name":"Проценты по кредитам банков и иных финансово-кредитных организаций"},{"code":"9612","name":"Расходы по выплате процентов по финансовой аренде (лизингу) имущества"},{"code":"9613","name":"Убытки от проведения переоценок вложенных средств (в ценные бумаги, дочерние предприятия и т. д.)"},{"code":"9614","name":"Прочие расходы по финансовой деятельности"},{"code":"5830","name":"Займы, предоставленные другим лицам"},{"code":"58301","name":"Поступления от возврата займов"},{"code":"6810","name":"Привлечение банковских кредитов"},{"code":"68101","name":"Погашения основного долга по кредитам банков"},{"code":"6820","name":"Получение займов"},{"code":"68201","name":"Погашения займов"},{"code":"6950","name":"Погашения основного долга по финансовой аренде (лизингу)"},{"code":"4600","name":"Взносы учредителей"},{"code":"6600","name":"Выплаты дивидендов"}],"orgs":[{"inn":"303268479","name":"OOO \"DURABLE BETON\"","group":"Прочие","vat":"с учетом НДС"},{"inn":"306563158","name":"OOO \"NURAFSHON - MAXSUS - BETON\"","group":"Прочие","vat":"с учетом НДС"},{"inn":"1","name":"ECO BOND(Махстон)","group":"Прочие","vat":"без учета НДС"},{"inn":"2","name":"USMON","group":"Прочие","vat":"без учета НДС"},{"inn":"СЕЙФ","name":"СЕЙФ (ЯККАСАРОЙ)","group":"Прочие","vat":"без учета НДС"},{"inn":"4","name":"ECO BOND(Жби)","group":"Прочие","vat":"без учета НДС"},{"inn":"5","name":"PROFIT(Махстон)","group":"Прочие","vat":"без учета НДС"},{"inn":"6","name":"ХОНОБОД ОБЪЕКТ-КАМФОРТ БЕТОН","group":"Прочие","vat":"без учета НДС"},{"inn":"7","name":"ФОЗИЛОВ БЕТОН","group":"Прочие","vat":"без учета НДС"},{"inn":"310442648","name":"Н\".SECURE LOGIST GROUP\"","group":"Прочие","vat":"без учета НДС"},{"inn":"8","name":"АЛИШЕР АКА","group":"Прочие","vat":"без учета НДС"},{"inn":"311707520","name":"Н.\"WORLD INERTS BETON\"","group":"Прочие","vat":"без учета НДС"},{"inn":"9","name":"ХАСАНБОЙ КЛИЕНТ","group":"Прочие","vat":"без учета НДС"},{"inn":"10","name":"ЖАМОЛИДДИН 5555","group":"Прочие","vat":"без учета НДС"},{"inn":"11","name":"СОБИРОВ","group":"Прочие","vat":"без учета НДС"},{"inn":"12","name":"ОЙБЕК","group":"Прочие","vat":"без учета НДС"},{"inn":"13","name":"БЛАГОТВОРИТЕЛЬНАЯ ПОМОЩЬ","group":"Прочие","vat":"без учета НДС"},{"inn":"14","name":"ECO BOND(Турк)","group":"Прочие","vat":"без учета НДС"},{"inn":"302846740","name":"OOO \"PROSPERITY TASHKENT\"","group":"Прочие","vat":"с учетом НДС"},{"inn":"15","name":"ШЕРЗОД КЛИЕНТ","group":"Прочие","vat":"без учета НДС"},{"inn":"200139120","name":"OOO XIKMK-426","group":"Прочие","vat":"с учетом НДС"},{"inn":"16","name":"КАМРОНБЕК","group":"Прочие","vat":"без учета НДС"},{"inn":"17","name":"ФАСАДЧИ ФАРРУХ","group":"Прочие","vat":"без учета НДС"},{"inn":"18","name":"ГЛИНКА ФАСАДЧИ","group":"Прочие","vat":"без учета НДС"},{"inn":"19","name":"КОРАСУВ МАЗЗАФАР","group":"Прочие","vat":"без учета НДС"},{"inn":"20","name":"КАХРАМОН ШАГАЛ УСЛУГА","group":"Прочие","vat":"без учета НДС"},{"inn":"21","name":"КОРАСУВ ФАСАДЧИ","group":"Прочие","vat":"без учета НДС"},{"inn":"22","name":"АКМАЛ АКА","group":"Прочие","vat":"без учета НДС"},{"inn":"205723619","name":"OOO \"LOTUS GAZ INVEST\"","group":"Прочие","vat":"с учетом НДС"},{"inn":"23","name":"ХАМКОРЛАР","group":"Прочие","vat":"без учета НДС"},{"inn":"24","name":"ХАБИБУЛЛОХ ШАГАЛ УСЛУГА","group":"Прочие","vat":"без учета НДС"},{"inn":"305413652","name":"OOO \"TEXNOMASH SERVICE\"","group":"Прочие","vat":"с учетом НДС"},{"inn":"302698245","name":"ЧП \"GLOBAL-AVTO-PARTS\"","group":"Прочие","vat":"с учетом НДС"},{"inn":"309899765","name":"OOO \"ONELOGISTIC\"","group":"Прочие","vat":"с учетом НДС"},{"inn":"304786260","name":"ЧП \"FON AUTO STAR\"","group":"Прочие","vat":"с учетом НДС"},{"inn":"207189688","name":"OOO \"AZIA AVTO DIZEL\"","group":"Прочие","vat":"с учетом НДС"},{"inn":"207162137","name":"OOO \"LUBE TRADE\"","group":"Прочие","vat":"с учетом НДС"},{"inn":"306997733","name":"OOO \"MIR-SHER OIL\"","group":"Прочие","vat":"с учетом НДС"},{"inn":"201772047","name":"ЧП \"APKOS\"","group":"Прочие","vat":"без учета НДС"},{"inn":"308392583","name":"OOO \"EDISON TECH\"","group":"Прочие","vat":"с учетом НДС"},{"inn":"307718563","name":"OOO \"ABDUBOSIT METAL SERVIS\"","group":"Прочие","vat":"с учетом НДС"},{"inn":"310902873","name":"OOO \"GREEN STAR OIL TRADING\"","group":"Прочие","vat":"с учетом НДС"},{"inn":"306350099(МАХСТОН)","name":"\"HUDUDIY ELEKTR TARMOQLARI\"(МАХСТОН)","group":"Прочие","vat":"с учетом НДС"},{"inn":"311750478","name":"OOO \"ALFA MEXANIKA KASKAD\"","group":"Прочие","vat":"с учетом НДС"},{"inn":"303350156","name":"OOO \"SARVAR QURILISH KOMFORT\"","group":"Прочие","vat":"с учетом НДС"},{"inn":"311069746","name":"OOO \"POWER EQUIPMENT MT\"","group":"Прочие","vat":"с учетом НДС"},{"inn":"307080403","name":"ЧП \"UCON IMPERIUM\"","group":"Прочие","vat":"без учета НДС"},{"inn":"311839855","name":"OOO \"BOSHTEXTAMINOT\"","group":"Прочие","vat":"с учетом НДС"},{"inn":"303136262","name":"OOO \"MIRABROR GROUP\"","group":"Прочие","vat":"с учетом НДС"},{"inn":"303860811","name":"OOO \"AVG TYRE\"","group":"Прочие","vat":"с учетом НДС"},{"inn":"306791738","name":"OOO \"CONSTRUCTION MACHINERY PARTS TRADE\"","group":"Прочие","vat":"с учетом НДС"},{"inn":"305400051","name":"OOO \"RO`J CHINA SERVICE\"","group":"Прочие","vat":"с учетом НДС"},{"inn":"309723651","name":"OOO \"ZHONG CHENG ZHUAN JIA\"","group":"Прочие","vat":"без учета НДС"},{"inn":"309443770","name":"OOO \"TECHNIK DIZEL PARTS\"","group":"Прочие","vat":"с учетом НДС"},{"inn":"307664197","name":"OOO \"HAMKOR ELEKTRO DVIGATEL\"","group":"Прочие","vat":"с учетом НДС"},{"inn":"304545251","name":"OOO \"MAGISTRAL DIESEL SERVICE\"","group":"Прочие","vat":"с учетом НДС"},{"inn":"307568134","name":"OOO \"UNIQUE TRADE STAR\"","group":"Прочие","vat":"с учетом НДС"},{"inn":"310205560","name":"OOO \"MAXSTONE-MINERALS\"","group":"Прочие","vat":"с учетом НДС"},{"inn":"306350099(ТУРК)","name":"\"HUDUDIY ELEKTR TARMOQLARI\"(ТУРК)","group":"Прочие","vat":"с учетом НДС"},{"inn":"ОБНАЛ","name":"ПГС-ТРАНСПОРТ(НДС)","group":"Прочие","vat":"без учета НДС"},{"inn":"311987902","name":"OOO \"TASH BUILDING\"(ОБНАЛ)","group":"Прочие","vat":"с учетом НДС"},{"inn":"306350099(ЖБИ)","name":"\"HUDUDIY ELEKTR TARMOQLARI\"(ЖБИ)","group":"Прочие","vat":"с учетом НДС"},{"inn":"309899765(НДС-СКЛАД)","name":"OOO \"ONELOGISTIC\"(НДС-СКЛАД)","group":"Прочие","vat":"с учетом НДС"},{"inn":"308103774","name":"OOO \"UNIQUE CONCRETE SOLUTION\"","group":"Прочие","vat":"с учетом НДС"},{"inn":"202858483","name":"\"IPOTEKA-BANK\" ATIB (00036 – Yakkasaroy filiali)","group":"Прочие","vat":"с учетом НДС"},{"inn":"304188775","name":"OOO \"GREEN WAY CONSTRUCTION\"","group":"Прочие","vat":"с учетом НДС"},{"inn":"303350156(НАХТ)","name":"НАХТ\"SARVAR QURILISH KOMFORT\"","group":"Прочие","vat":"без учета НДС"},{"inn":"25","name":"УРМОН-ИХТИЁР","group":"Прочие","vat":"без учета НДС"},{"inn":"Ойлик(МАХСТОН)","name":"Ойлик(МАХСТОН)","group":"Прочие","vat":"без учета НДС"},{"inn":"Ойлик(ТУРК)","name":"Ойлик(ТУРК)","group":"Прочие","vat":"без учета НДС"},{"inn":"Ойлик(ЖБИ)","name":"Ойлик(ЖБИ)","group":"Прочие","vat":"без учета НДС"},{"inn":"26","name":"ФАТХУЛЛО ШАГАЛ","group":"Прочие","vat":"без учета НДС"},{"inn":"27","name":"СОЛЯРКА-САРДОР","group":"Прочие","vat":"без учета НДС"},{"inn":"28","name":"ЧИЛОНЗОР АБДУЛЛА","group":"Прочие","vat":"без учета НДС"},{"inn":"29","name":"BIG FORCE МУРОД","group":"Прочие","vat":"без учета НДС"},{"inn":"30","name":"ВАЛИЖОН АКА (СНАБЖЕНИЯ)","group":"Прочие","vat":"без учета НДС"},{"inn":"31","name":"БОТИР-СОЛЯРКА","group":"Прочие","vat":"без учета НДС"},{"inn":"A.P","name":"A.P( руководитель)","group":"Прочие","vat":"без учета НДС"},{"inn":"32","name":"АСАД-ШАГАЛ","group":"Прочие","vat":"без учета НДС"},{"inn":"33","name":"КЛАСТЕР-65","group":"Прочие","vat":"без учета НДС"},{"inn":"302281575","name":"OOO \"PETROCHEM\"","group":"Прочие","vat":"с учетом НДС"},{"inn":"308975940","name":"OOO \"BEK METALL BUSINES-GROUP\"","group":"Прочие","vat":"с учетом НДС"},{"inn":"Тест-1","name":"Тест-1","group":"","vat":"без учета НДС"},{"inn":"Махстон(Услуга Нал)","name":"Махстон(Услуга Нал)","group":"","vat":"без учета НДС"},{"inn":"Турк(Услуга Нал)","name":"Турк(Услуга Нал)","group":"","vat":"без учета НДС"},{"inn":"Жби(Услуга Нал)","name":"Жби(Услуга Нал)","group":"","vat":"без учета НДС"},{"inn":"309921650","name":"\"SMG FACTORY\" MCHJ","group":"","vat":"без учета НДС"},{"inn":"309284463","name":"\"MINI MALL\" MCHJ","group":"","vat":"без учета НДС"}],"products":[{"code":"1","name":"Клинес","unit":"м³"},{"code":"2","name":"Пойма","unit":"м³"},{"code":"3","name":"Щебень 5-20","unit":"м³"}],"materials":[{"code":"1","name":"ШАГАЛ(ПГС)","unit":"м³","wh":""},{"code":"2","name":"СОЛЯРКА","unit":"литр","wh":""},{"code":"3","name":"ШЕБЕН","unit":"м³","wh":"Турк"}]};
+/* ============ STATE ============ */
+const MONTHS=['yanvar','fevral','mart','aprel','may','iyun','iyul','avgust','sentabr','oktabr','noyabr','dekabr'];
+const DIVS=['Maxston','Turk','Jbi','Sement','Pompa','Sementovoz','Ofis'];
+const CASH=['Ofis kassa','Maxston','Turk','Jbi','Bank'];
+
+const DEMO={"bank":[{"m":5,"d":"2025-05-07","org":"OOO \"DURABLE BETON\"","note":"Mahsulot uchun to'lov","in":273278000,"out":0,"ccode":"9011","div":"Jbi"},{"m":5,"d":"2025-05-17","org":"OOO \"NURAFSHON - MAXSUS - BETON\"","note":"Mahsulot uchun to'lov","in":200404000,"out":0,"ccode":"9011","div":"Turk"},{"m":5,"d":"2025-05-25","org":"ECO BOND(Махстон)","note":"Mahsulot uchun to'lov","in":133602000,"out":0,"ccode":"9013","div":"Maxston"},{"m":5,"d":"2025-05-12","org":"ПГС-ТРАНСПОРТ(НДС)","note":"Ishlab chiqarish xarajatlari","in":0,"out":41760000,"ecode":"2010","ccode":"2010","div":"Jbi"},{"m":5,"d":"2025-05-07","org":"\"SMG FACTORY\" MCHJ","note":"NDFL 11,9%","in":0,"out":10008000,"ecode":"2013","ccode":"2010","div":"Ofis"},{"m":5,"d":"2025-05-07","org":"OOO \"LOTUS GAZ INVEST\"","note":"Ijtimoiy soliq 12%","in":0,"out":6120000,"ecode":"2014","ccode":"2010","div":"Ofis"},{"m":5,"d":"2025-05-18","org":"УРМОН-ИХТИЁР","note":"INPS 0,1%","in":0,"out":52000,"ecode":"2015","ccode":"2010","div":"Ofis"},{"m":5,"d":"2025-05-26","org":"ХОНОБОД ОБЪЕКТ-КАМФОРТ БЕТОН","note":"Yuk ortish-tushirish","in":0,"out":6624000,"ecode":"2019","ccode":"2010","div":"Turk"},{"m":5,"d":"2025-05-25","org":"\"MINI MALL\" MCHJ","note":"Elektr energiya","in":0,"out":10440000,"ecode":"2027","ccode":"2010","div":"Jbi"},{"m":5,"d":"2025-05-11","org":"БОТИР-СОЛЯРКА","note":"Ma'muriy xodimlar oyligi","in":0,"out":33120000,"ecode":"94201","ccode":"","div":"Ofis"},{"m":5,"d":"2025-05-14","org":"АСАД-ШАГАЛ","note":"Ofis ijarasi","in":0,"out":5400000,"ecode":"94205","ccode":"","div":"Ofis"},{"m":5,"d":"2025-05-05","org":"OOO \"ONELOGISTIC\"","note":"Internet va telefon","in":0,"out":1296000,"ecode":"94213","ccode":"","div":"Ofis"},{"m":5,"d":"2025-05-18","org":"ЧП \"FON AUTO STAR\"","note":"Bank xizmatlari","in":0,"out":1728000,"ecode":"94302","ccode":"","div":"Ofis"},{"m":5,"d":"2025-05-28","org":"OOO \"NURAFSHON - MAXSUS - BETON\"","note":"NDS to'lovi","in":0,"out":27360000,"ecode":"94321","ccode":"","div":"Ofis"},{"m":5,"d":"2025-05-10","org":"","note":"Kassaga o'tkazma","in":0,"out":156718000,"ccode":"5531","div":"Ofis"},{"m":6,"d":"2025-06-07","org":"OOO \"DURABLE BETON\"","note":"Mahsulot uchun to'lov","in":330271000,"out":0,"ccode":"9011","div":"Jbi"},{"m":6,"d":"2025-06-17","org":"OOO \"NURAFSHON - MAXSUS - BETON\"","note":"Mahsulot uchun to'lov","in":242199000,"out":0,"ccode":"9011","div":"Turk"},{"m":6,"d":"2025-06-25","org":"ECO BOND(Махстон)","note":"Mahsulot uchun to'lov","in":161466000,"out":0,"ccode":"9013","div":"Maxston"},{"m":6,"d":"2025-06-16","org":"ОЙБЕК","note":"Ishlab chiqarish xarajatlari","in":0,"out":49880000,"ecode":"2010","ccode":"2010","div":"Jbi"},{"m":6,"d":"2025-06-05","org":"OOO \"HAMKOR ELEKTRO DVIGATEL\"","note":"NDFL 11,9%","in":0,"out":11954000,"ecode":"2013","ccode":"2010","div":"Ofis"},{"m":6,"d":"2025-06-09","org":"\"MINI MALL\" MCHJ","note":"Ijtimoiy soliq 12%","in":0,"out":7310000,"ecode":"2014","ccode":"2010","div":"Ofis"},{"m":6,"d":"2025-06-13","org":"OOO \"RO`J CHINA SERVICE\"","note":"INPS 0,1%","in":0,"out":62000,"ecode":"2015","ccode":"2010","div":"Ofis"},{"m":6,"d":"2025-06-25","org":"СЕЙФ (ЯККАСАРОЙ)","note":"Yuk ortish-tushirish","in":0,"out":7912000,"ecode":"2019","ccode":"2010","div":"Turk"},{"m":6,"d":"2025-06-17","org":"ХАСАНБОЙ КЛИЕНТ","note":"Elektr energiya","in":0,"out":12470000,"ecode":"2027","ccode":"2010","div":"Jbi"},{"m":6,"d":"2025-06-26","org":"ECO BOND(Жби)","note":"Ma'muriy xodimlar oyligi","in":0,"out":39560000,"ecode":"94201","ccode":"","div":"Ofis"},{"m":6,"d":"2025-06-25","org":"ХАБИБУЛЛОХ ШАГАЛ УСЛУГА","note":"Ofis ijarasi","in":0,"out":6450000,"ecode":"94205","ccode":"","div":"Ofis"},{"m":6,"d":"2025-06-20","org":"OOO \"AVG TYRE\"","note":"Internet va telefon","in":0,"out":1548000,"ecode":"94213","ccode":"","div":"Ofis"},{"m":6,"d":"2025-06-28","org":"PROFIT(Махстон)","note":"Bank xizmatlari","in":0,"out":2064000,"ecode":"94302","ccode":"","div":"Ofis"},{"m":6,"d":"2025-06-06","org":"OOO \"RO`J CHINA SERVICE\"","note":"NDS to'lovi","in":0,"out":32680000,"ecode":"94321","ccode":"","div":"Ofis"},{"m":6,"d":"2025-06-10","org":"","note":"Kassaga o'tkazma","in":0,"out":189403000,"ccode":"5531","div":"Ofis"},{"m":7,"d":"2025-07-07","org":"OOO \"DURABLE BETON\"","note":"Mahsulot uchun to'lov","in":388485000,"out":0,"ccode":"9011","div":"Jbi"},{"m":7,"d":"2025-07-17","org":"OOO \"NURAFSHON - MAXSUS - BETON\"","note":"Mahsulot uchun to'lov","in":284889000,"out":0,"ccode":"9011","div":"Turk"},{"m":7,"d":"2025-07-25","org":"ECO BOND(Махстон)","note":"Mahsulot uchun to'lov","in":189926000,"out":0,"ccode":"9013","div":"Maxston"},{"m":7,"d":"2025-07-28","org":"OOO \"SARVAR QURILISH KOMFORT\"","note":"Ishlab chiqarish xarajatlari","in":0,"out":58000000,"ecode":"2010","ccode":"2010","div":"Jbi"},{"m":7,"d":"2025-07-24","org":"Н\".SECURE LOGIST GROUP\"","note":"NDFL 11,9%","in":0,"out":13900000,"ecode":"2013","ccode":"2010","div":"Ofis"},{"m":7,"d":"2025-07-12","org":"OOO \"TECHNIK DIZEL PARTS\"","note":"Ijtimoiy soliq 12%","in":0,"out":8500000,"ecode":"2014","ccode":"2010","div":"Ofis"},{"m":7,"d":"2025-07-07","org":"OOO \"TASH BUILDING\"(ОБНАЛ)","note":"INPS 0,1%","in":0,"out":72000,"ecode":"2015","ccode":"2010","div":"Ofis"},{"m":7,"d":"2025-07-25","org":"BIG FORCE МУРОД","note":"Yuk ortish-tushirish","in":0,"out":9200000,"ecode":"2019","ccode":"2010","div":"Turk"},{"m":7,"d":"2025-07-26","org":"ЧП \"GLOBAL-AVTO-PARTS\"","note":"Elektr energiya","in":0,"out":14500000,"ecode":"2027","ccode":"2010","div":"Jbi"},{"m":7,"d":"2025-07-08","org":"Турк(Услуга Нал)","note":"Ma'muriy xodimlar oyligi","in":0,"out":46000000,"ecode":"94201","ccode":"","div":"Ofis"},{"m":7,"d":"2025-07-17","org":"OOO \"ZHONG CHENG ZHUAN JIA\"","note":"Ofis ijarasi","in":0,"out":7500000,"ecode":"94205","ccode":"","div":"Ofis"},{"m":7,"d":"2025-07-16","org":"OOO \"GREEN STAR OIL TRADING\"","note":"Internet va telefon","in":0,"out":1800000,"ecode":"94213","ccode":"","div":"Ofis"},{"m":7,"d":"2025-07-28","org":"OOO \"NURAFSHON - MAXSUS - BETON\"","note":"Bank xizmatlari","in":0,"out":2400000,"ecode":"94302","ccode":"","div":"Ofis"},{"m":7,"d":"2025-07-28","org":"Ойлик(ЖБИ)","note":"NDS to'lovi","in":0,"out":38000000,"ecode":"94321","ccode":"","div":"Ofis"},{"m":7,"d":"2025-07-10","org":"","note":"Kassaga o'tkazma","in":0,"out":222787000,"ccode":"5531","div":"Ofis"}],"kassa":[{"m":5,"d":"2025-05-10","cash":"Ofis kassa","org":"","note":"Bankdan o'tkazma","in":156718000,"out":0,"ccode":"5531","div":"Ofis"},{"m":5,"d":"2025-05-14","cash":"Ofis kassa","org":"OOO \"DURABLE BETON\"","note":"Naqd tushum","in":88154000,"out":0,"ccode":"9013","div":"Maxston"},{"m":5,"d":"2025-05-13","cash":"Maxston","org":"ХАМКОРЛАР","note":"Xomashyo naqd to'lov","in":0,"out":69120000,"ecode":"2011","ccode":"","div":"Maxston"},{"m":5,"d":"2025-05-28","cash":"Turk","org":"ГЛИНКА ФАСАДЧИ","note":"Solyarka","in":0,"out":37440000,"ecode":"2019","ccode":"","div":"Turk"},{"m":5,"d":"2025-05-28","cash":"Jbi","org":"ПГС-ТРАНСПОРТ(НДС)","note":"Transport xarajati","in":0,"out":17928000,"ecode":"2021","ccode":"","div":"Jbi"},{"m":5,"d":"2025-05-20","cash":"Jbi","org":"КАХРАМОН ШАГАЛ УСЛУГА","note":"Ishchilar ovqati","in":0,"out":13320000,"ecode":"2023","ccode":"","div":"Jbi"},{"m":5,"d":"2025-05-07","cash":"Maxston","org":"OOO \"LUBE TRADE\"","note":"Maxsus kiyim va asboblar","in":0,"out":4536000,"ecode":"2024","ccode":"","div":"Maxston"},{"m":5,"d":"2025-05-16","cash":"Turk","org":"ФАСАДЧИ ФАРРУХ","note":"Yuklagich ehtiyot qismlari","in":0,"out":8064000,"ecode":"2025","ccode":"","div":"Turk"},{"m":5,"d":"2025-05-28","cash":"Ofis kassa","org":"ЧП \"FON AUTO STAR\"","note":"Ma'muriyat ovqati","in":0,"out":2952000,"ecode":"94207","ccode":"","div":"Ofis"},{"m":5,"d":"2025-05-09","cash":"Ofis kassa","org":"OOO \"HAMKOR ELEKTRO DVIGATEL\"","note":"Kanselyariya","in":0,"out":1584000,"ecode":"94208","ccode":"","div":"Ofis"},{"m":5,"d":"2025-05-16","cash":"Jbi","org":"OOO \"EDISON TECH\"","note":"Asosiy vositalar ta'miri","in":0,"out":11376000,"ecode":"94314","ccode":"","div":"Jbi"},{"m":6,"d":"2025-06-10","cash":"Ofis kassa","org":"","note":"Bankdan o'tkazma","in":189403000,"out":0,"ccode":"5531","div":"Ofis"},{"m":6,"d":"2025-06-14","cash":"Ofis kassa","org":"OOO \"NURAFSHON - MAXSUS - BETON\"","note":"Naqd tushum","in":106539000,"out":0,"ccode":"9013","div":"Maxston"},{"m":6,"d":"2025-06-10","cash":"Maxston","org":"A.P( руководитель)","note":"Xomashyo naqd to'lov","in":0,"out":82560000,"ecode":"2011","ccode":"","div":"Maxston"},{"m":6,"d":"2025-06-27","cash":"Turk","org":"Махстон(Услуга Нал)","note":"Solyarka","in":0,"out":44720000,"ecode":"2019","ccode":"","div":"Turk"},{"m":6,"d":"2025-06-13","cash":"Jbi","org":"Ойлик(ЖБИ)","note":"Transport xarajati","in":0,"out":21414000,"ecode":"2021","ccode":"","div":"Jbi"},{"m":6,"d":"2025-06-04","cash":"Jbi","org":"OOO \"LOTUS GAZ INVEST\"","note":"Ishchilar ovqati","in":0,"out":15910000,"ecode":"2023","ccode":"","div":"Jbi"},{"m":6,"d":"2025-06-12","cash":"Maxston","org":"ЧИЛОНЗОР АБДУЛЛА","note":"Maxsus kiyim va asboblar","in":0,"out":5418000,"ecode":"2024","ccode":"","div":"Maxston"},{"m":6,"d":"2025-06-14","cash":"Turk","org":"BIG FORCE МУРОД","note":"Yuklagich ehtiyot qismlari","in":0,"out":9632000,"ecode":"2025","ccode":"","div":"Turk"},{"m":6,"d":"2025-06-28","cash":"Ofis kassa","org":"PROFIT(Махстон)","note":"Ma'muriyat ovqati","in":0,"out":3526000,"ecode":"94207","ccode":"","div":"Ofis"},{"m":6,"d":"2025-06-19","cash":"Ofis kassa","org":"\"HUDUDIY ELEKTR TARMOQLARI\"(ТУРК)","note":"Kanselyariya","in":0,"out":1892000,"ecode":"94208","ccode":"","div":"Ofis"},{"m":6,"d":"2025-06-08","cash":"Jbi","org":"OOO \"EDISON TECH\"","note":"Asosiy vositalar ta'miri","in":0,"out":13588000,"ecode":"94314","ccode":"","div":"Jbi"},{"m":7,"d":"2025-07-10","cash":"Ofis kassa","org":"","note":"Bankdan o'tkazma","in":222787000,"out":0,"ccode":"5531","div":"Ofis"},{"m":7,"d":"2025-07-14","cash":"Ofis kassa","org":"OOO \"DURABLE BETON\"","note":"Naqd tushum","in":125318000,"out":0,"ccode":"9013","div":"Maxston"},{"m":7,"d":"2025-07-23","cash":"Maxston","org":"OOO \"ONELOGISTIC\"(НДС-СКЛАД)","note":"Xomashyo naqd to'lov","in":0,"out":96000000,"ecode":"2011","ccode":"","div":"Maxston"},{"m":7,"d":"2025-07-08","cash":"Turk","org":"OOO \"ZHONG CHENG ZHUAN JIA\"","note":"Solyarka","in":0,"out":52000000,"ecode":"2019","ccode":"","div":"Turk"},{"m":7,"d":"2025-07-15","cash":"Jbi","org":"ШЕРЗОД КЛИЕНТ","note":"Transport xarajati","in":0,"out":24900000,"ecode":"2021","ccode":"","div":"Jbi"},{"m":7,"d":"2025-07-16","cash":"Jbi","org":"OOO \"DURABLE BETON\"","note":"Ishchilar ovqati","in":0,"out":18500000,"ecode":"2023","ccode":"","div":"Jbi"},{"m":7,"d":"2025-07-11","cash":"Maxston","org":"ECO BOND(Жби)","note":"Maxsus kiyim va asboblar","in":0,"out":6300000,"ecode":"2024","ccode":"","div":"Maxston"},{"m":7,"d":"2025-07-09","cash":"Turk","org":"ЖАМОЛИДДИН 5555","note":"Yuklagich ehtiyot qismlari","in":0,"out":11200000,"ecode":"2025","ccode":"","div":"Turk"},{"m":7,"d":"2025-07-22","cash":"Ofis kassa","org":"Н\".SECURE LOGIST GROUP\"","note":"Ma'muriyat ovqati","in":0,"out":4100000,"ecode":"94207","ccode":"","div":"Ofis"},{"m":7,"d":"2025-07-18","cash":"Ofis kassa","org":"OOO \"AZIA AVTO DIZEL\"","note":"Kanselyariya","in":0,"out":2200000,"ecode":"94208","ccode":"","div":"Ofis"},{"m":7,"d":"2025-07-15","cash":"Jbi","org":"Н\".SECURE LOGIST GROUP\"","note":"Asosiy vositalar ta'miri","in":0,"out":15800000,"ecode":"94314","ccode":"","div":"Jbi"}],"sales":[{"m":5,"d":"2025-05-07","org":"OOO \"DURABLE BETON\"","code":"1","qty":1312,"price":93500,"vat":"ndsli","div":"Jbi"},{"m":5,"d":"2025-05-18","org":"OOO \"DURABLE BETON\"","code":"1","qty":1597,"price":93500,"vat":"ndsli","div":"Jbi"},{"m":5,"d":"2025-05-13","org":"OOO \"NURAFSHON - MAXSUS - BETON\"","code":"1","qty":1221,"price":93500,"vat":"ndsli","div":"Jbi"},{"m":5,"d":"2025-05-19","org":"USMON","code":"1","qty":1121,"price":93500,"vat":"ndsli","div":"Jbi"},{"m":5,"d":"2025-05-26","org":"USMON","code":"1","qty":1466,"price":93500,"vat":"ndsli","div":"Jbi"},{"m":5,"d":"2025-05-09","org":"OOO \"NURAFSHON - MAXSUS - BETON\"","code":"3","qty":1086,"price":111500,"vat":"ndsli","div":"Turk"},{"m":5,"d":"2025-05-24","org":"OOO \"NURAFSHON - MAXSUS - BETON\"","code":"3","qty":1113,"price":111500,"vat":"ndsli","div":"Turk"},{"m":5,"d":"2025-05-10","org":"USMON","code":"3","qty":943,"price":111500,"vat":"ndsli","div":"Turk"},{"m":5,"d":"2025-05-24","org":"USMON","code":"2","qty":46,"price":13000,"vat":"ndsli","div":"Maxston"},{"m":5,"d":"2025-05-19","org":"ECO BOND(Махстон)","code":"2","qty":40,"price":13000,"vat":"ndsli","div":"Maxston"},{"m":6,"d":"2025-06-06","org":"USMON","code":"1","qty":1521,"price":94600,"vat":"ndsli","div":"Jbi"},{"m":6,"d":"2025-06-12","org":"OOO \"NURAFSHON - MAXSUS - BETON\"","code":"1","qty":1378,"price":94600,"vat":"ndsli","div":"Jbi"},{"m":6,"d":"2025-06-05","org":"ECO BOND(Махстон)","code":"1","qty":1869,"price":94600,"vat":"ndsli","div":"Jbi"},{"m":6,"d":"2025-06-18","org":"OOO \"DURABLE BETON\"","code":"1","qty":1899,"price":94600,"vat":"ndsli","div":"Jbi"},{"m":6,"d":"2025-06-17","org":"USMON","code":"1","qty":1357,"price":94600,"vat":"ndsli","div":"Jbi"},{"m":6,"d":"2025-06-26","org":"OOO \"NURAFSHON - MAXSUS - BETON\"","code":"3","qty":1222,"price":112800,"vat":"ndsli","div":"Turk"},{"m":6,"d":"2025-06-27","org":"OOO \"NURAFSHON - MAXSUS - BETON\"","code":"3","qty":1178,"price":112800,"vat":"ndsli","div":"Turk"},{"m":6,"d":"2025-06-11","org":"OOO \"DURABLE BETON\"","code":"3","qty":1353,"price":112800,"vat":"ndsli","div":"Turk"},{"m":6,"d":"2025-06-16","org":"ECO BOND(Махстон)","code":"2","qty":58,"price":13200,"vat":"ndsli","div":"Maxston"},{"m":6,"d":"2025-06-15","org":"OOO \"DURABLE BETON\"","code":"2","qty":45,"price":13200,"vat":"ndsli","div":"Maxston"},{"m":7,"d":"2025-07-11","org":"USMON","code":"1","qty":1847,"price":95700,"vat":"ndsli","div":"Jbi"},{"m":7,"d":"2025-07-25","org":"USMON","code":"1","qty":1847,"price":95700,"vat":"ndsli","div":"Jbi"},{"m":7,"d":"2025-07-21","org":"OOO \"NURAFSHON - MAXSUS - BETON\"","code":"1","qty":2098,"price":95700,"vat":"ndsli","div":"Jbi"},{"m":7,"d":"2025-07-06","org":"OOO \"DURABLE BETON\"","code":"1","qty":2107,"price":95700,"vat":"ndsli","div":"Jbi"},{"m":7,"d":"2025-07-22","org":"USMON","code":"1","qty":1431,"price":95700,"vat":"ndsli","div":"Jbi"},{"m":7,"d":"2025-07-15","org":"OOO \"NURAFSHON - MAXSUS - BETON\"","code":"3","qty":1412,"price":114100,"vat":"ndsli","div":"Turk"},{"m":7,"d":"2025-07-13","org":"USMON","code":"3","qty":1383,"price":114100,"vat":"ndsli","div":"Turk"},{"m":7,"d":"2025-07-21","org":"OOO \"NURAFSHON - MAXSUS - BETON\"","code":"3","qty":1569,"price":114100,"vat":"ndsli","div":"Turk"},{"m":7,"d":"2025-07-21","org":"OOO \"NURAFSHON - MAXSUS - BETON\"","code":"2","qty":56,"price":13400,"vat":"ndsli","div":"Maxston"},{"m":7,"d":"2025-07-24","org":"OOO \"DURABLE BETON\"","code":"2","qty":64,"price":13400,"vat":"ndsli","div":"Maxston"}],"prod":[{"m":5,"d":"2025-05-29","code":"1","qty":7071,"div":"Jbi"},{"m":5,"d":"2025-05-29","code":"3","qty":3415,"div":"Turk"},{"m":5,"d":"2025-05-29","code":"2","qty":108,"div":"Maxston"},{"m":6,"d":"2025-06-29","code":"1","qty":8446,"div":"Jbi"},{"m":6,"d":"2025-06-29","code":"3","qty":4079,"div":"Turk"},{"m":6,"d":"2025-06-29","code":"2","qty":129,"div":"Maxston"},{"m":7,"d":"2025-07-29","code":"1","qty":9821,"div":"Jbi"},{"m":7,"d":"2025-07-29","code":"3","qty":4743,"div":"Turk"},{"m":7,"d":"2025-07-29","code":"2","qty":150,"div":"Maxston"}],"matIn":[{"m":5,"d":"2025-05-04","org":"ФАТХУЛЛО ШАГАЛ","code":"1","qty":7920,"price":5000,"div":"Jbi"},{"m":5,"d":"2025-05-12","org":"USMON","code":"3","qty":4464,"price":80000,"div":"Turk"},{"m":5,"d":"2025-05-19","org":"ФАТХУЛЛО ШАГАЛ","code":"2","qty":6480,"price":8200,"div":"Maxston"},{"m":5,"d":"2025-05-26","org":"ФАТХУЛЛО ШАГАЛ","code":"1","qty":3024,"price":5200,"div":"Jbi"},{"m":6,"d":"2025-06-04","org":"ФАТХУЛЛО ШАГАЛ","code":"1","qty":9460,"price":5000,"div":"Jbi"},{"m":6,"d":"2025-06-12","org":"USMON","code":"3","qty":5332,"price":80000,"div":"Turk"},{"m":6,"d":"2025-06-19","org":"ФАТХУЛЛО ШАГАЛ","code":"2","qty":7740,"price":8200,"div":"Maxston"},{"m":6,"d":"2025-06-26","org":"ФАТХУЛЛО ШАГАЛ","code":"1","qty":3612,"price":5200,"div":"Jbi"},{"m":7,"d":"2025-07-04","org":"ФАТХУЛЛО ШАГАЛ","code":"1","qty":11000,"price":5000,"div":"Jbi"},{"m":7,"d":"2025-07-12","org":"USMON","code":"3","qty":6200,"price":80000,"div":"Turk"},{"m":7,"d":"2025-07-19","org":"ФАТХУЛЛО ШАГАЛ","code":"2","qty":9000,"price":8200,"div":"Maxston"},{"m":7,"d":"2025-07-26","org":"ФАТХУЛЛО ШАГАЛ","code":"1","qty":4200,"price":5200,"div":"Jbi"}],"matOut":[{"m":5,"d":"2025-05-28","code":"1","qty":7366,"div":"Jbi"},{"m":5,"d":"2025-05-28","code":"3","qty":4018,"div":"Turk"},{"m":5,"d":"2025-05-28","code":"2","qty":6156,"div":"Maxston"},{"m":6,"d":"2025-06-28","code":"1","qty":8798,"div":"Jbi"},{"m":6,"d":"2025-06-28","code":"3","qty":4799,"div":"Turk"},{"m":6,"d":"2025-06-28","code":"2","qty":7353,"div":"Maxston"},{"m":7,"d":"2025-07-28","code":"1","qty":10230,"div":"Jbi"},{"m":7,"d":"2025-07-28","code":"3","qty":5580,"div":"Turk"},{"m":7,"d":"2025-07-28","code":"2","qty":8550,"div":"Maxston"}],"ar":[{"m":5,"org":"OOO \"DURABLE BETON\"","note":"Sotuv","dt":244873000,"kt":197701000},{"m":5,"org":"OOO \"NURAFSHON - MAXSUS - BETON\"","note":"Sotuv","dt":244873000,"kt":195764000},{"m":5,"org":"ECO BOND(Махстон)","note":"Sotuv","dt":244873000,"kt":205966000},{"m":5,"org":"USMON","note":"Sotuv","dt":244873000,"kt":175699000},{"m":6,"org":"OOO \"DURABLE BETON\"","note":"Sotuv","dt":295942000,"kt":179826000},{"m":6,"org":"OOO \"NURAFSHON - MAXSUS - BETON\"","note":"Sotuv","dt":295942000,"kt":228294000},{"m":6,"org":"ECO BOND(Махстон)","note":"Sotuv","dt":295942000,"kt":185449000},{"m":6,"org":"USMON","note":"Sotuv","dt":295942000,"kt":217753000},{"m":7,"org":"OOO \"DURABLE BETON\"","note":"Sotuv","dt":348105000,"kt":225448000},{"m":7,"org":"OOO \"NURAFSHON - MAXSUS - BETON\"","note":"Sotuv","dt":348105000,"kt":195050000},{"m":7,"org":"ECO BOND(Махстон)","note":"Sotuv","dt":348105000,"kt":294050000},{"m":7,"org":"USMON","note":"Sotuv","dt":348105000,"kt":230600000}],"ap":[{"m":5,"org":"ФАТХУЛЛО ШАГАЛ","note":"Xomashyo","dt":56149000,"kt":79200000},{"m":5,"org":"USMON","note":"Xomashyo","dt":62774000,"kt":79200000},{"m":6,"org":"ФАТХУЛЛО ШАГАЛ","note":"Xomashyo","dt":65913000,"kt":94600000},{"m":6,"org":"USMON","note":"Xomashyo","dt":61595000,"kt":94600000},{"m":7,"org":"ФАТХУЛЛО ШАГАЛ","note":"Xomashyo","dt":74195000,"kt":110000000},{"m":7,"org":"USMON","note":"Xomashyo","dt":81789000,"kt":110000000}],"openStock":[{"code":"1","qty":8500,"val":42500000},{"code":"3","qty":1200,"val":96000000},{"code":"2","qty":3000,"val":24000000}],"openCash":{"bank":185000000,"kassa":42000000}};
+let S=Object.assign({month:7,year:2025,rate:12650,
+  bank:[],kassa:[],sales:[],prod:[],matIn:[],matOut:[],ar:[],ap:[],payroll:[],
+  prices:[],openStock:[],openCash:{}},JSON.parse(JSON.stringify(DEMO)));
+
+const K='pd_fin_v1';
+function save(){try{localStorage.setItem(K,JSON.stringify(S))}catch(e){}}
+function load(){try{const r=localStorage.getItem(K);if(r)S=Object.assign(S,JSON.parse(r))}catch(e){}}
+
+/* ============ HELPERS ============ */
+const $=id=>document.getElementById(id);
+const num=v=>{const n=parseFloat(String(v??'').replace(/\s|,/g,''));return isFinite(n)?n:0};
+function fmt(v,d=0){if(!isFinite(v))v=0;
+  return v.toLocaleString('ru-RU',{minimumFractionDigits:d,maximumFractionDigits:d})}
+function fmtU(v){return fmt(v,0)}
+function usd(v){return fmt(S.rate?v/S.rate:0,2)}
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const NDS=0.12;
+const inMonth=r=>Number(r.m)===S.month;
+
+/* rows of current month only */
+function cur(arr){return (arr||[]).filter(inMonth)}
+
+/* ============ CALC ENGINE ============ */
+
+/* --- Savdo / Revenue --- */
+function calcSales(){
+  const rows=cur(S.sales);
+  let g=0,vat=0,net=0,qty=0;
+  rows.forEach(r=>{
+    const amt=num(r.qty)*num(r.price);
+    const v=r.vat==='ndsli'?amt-amt/(1+NDS):0;
+    g+=amt; vat+=v; net+=amt-v; qty+=num(r.qty);
+  });
+  return {gross:g,vat:vat,net:net,qty:qty,rows:rows};
+}
+
+/* --- Xarajatlar / Expenses from bank+kassa by code --- */
+function expenseByCode(){
+  const m={};
+  const add=(code,uzs)=>{if(!code)return;m[code]=(m[code]||0)+uzs};
+  cur(S.bank).forEach(r=>{if(num(r.out)>0)add(r.ecode,num(r.out))});
+  cur(S.kassa).forEach(r=>{if(num(r.out)>0)add(r.ecode,num(r.out))});
+  return m;
+}
+function expenseGroups(){
+  const m=expenseByCode();
+  const g={prod:0,sell:0,admin:0,other:0};
+  for(const c in m){
+    const v=m[c];
+    if(c.startsWith('20'))g.prod+=v;
+    else if(c.startsWith('941'))g.sell+=v;
+    else if(c.startsWith('942'))g.admin+=v;
+    else if(c.startsWith('943'))g.other+=v;
+  }
+  g.period=g.sell+g.admin+g.other;
+  g.total=g.prod+g.period;
+  return g;
+}
+
+/* --- Xomashyo / Raw material movement --- */
+function matBalance(){
+  const map={};
+  REF.materials.forEach(x=>map[x.code]={code:x.code,name:x.name,unit:x.unit,
+    oq:0,ov:0,iq:0,iv:0,oq2:0,ov2:0});
+  (S.openStock||[]).forEach(r=>{const t=map[r.code];if(t){t.oq+=num(r.qty);t.ov+=num(r.val)}});
+  cur(S.matIn).forEach(r=>{const t=map[r.code];if(t){t.iq+=num(r.qty);t.iv+=num(r.qty)*num(r.price)}});
+  cur(S.matOut).forEach(r=>{const t=map[r.code];if(t){t.oq2+=num(r.qty);
+    const avg=(t.oq+t.iq)?(t.ov+t.iv)/(t.oq+t.iq):0; t.ov2+=num(r.qty)*avg}});
+  return Object.values(map).map(t=>({...t,
+    cq:t.oq+t.iq-t.oq2, cv:t.ov+t.iv-t.ov2,
+    avg:(t.oq+t.iq)?(t.ov+t.iv)/(t.oq+t.iq):0}));
+}
+
+/* --- Tannarx / COGS --- */
+function calcCOGS(){
+  const mat=matBalance();
+  const matUsed=mat.reduce((s,x)=>s+x.ov2,0);
+  const g=expenseGroups();
+  const total=matUsed+g.prod;
+  const prodQty=cur(S.prod).reduce((s,r)=>s+num(r.qty),0);
+  return {matUsed,prodExp:g.prod,total,prodQty,perUnit:prodQty?total/prodQty:0};
+}
+
+/* --- Tayyor mahsulot / Finished goods --- */
+function fgBalance(){
+  const map={};
+  REF.products.forEach(p=>map[p.code]={code:p.code,name:p.name,unit:p.unit,
+    inq:0,outq:0,rev:0});
+  cur(S.prod).forEach(r=>{const t=map[r.code];if(t)t.inq+=num(r.qty)});
+  cur(S.sales).forEach(r=>{const t=map[r.code];if(t){t.outq+=num(r.qty);
+    const a=num(r.qty)*num(r.price);t.rev+=r.vat==='ndsli'?a/(1+NDS):a}});
+  const c=calcCOGS();
+  return Object.values(map).map(t=>({...t,
+    bal:t.inq-t.outq, cost:t.outq*c.perUnit,
+    profit:t.rev-t.outq*c.perUnit,
+    avgPrice:t.outq?t.rev/t.outq:0}));
+}
+
+/* --- OFR / P&L --- */
+function calcPL(){
+  const s=calcSales(), c=calcCOGS(), g=expenseGroups();
+  const cogs=fgBalance().reduce((a,x)=>a+x.cost,0);
+  const gross=s.net-cogs;
+  const opProfit=gross-g.period;
+  const tax=opProfit>0?opProfit*0.15:0;
+  return {revenue:s.net,vat:s.vat,cogs,gross,
+    sell:g.sell,admin:g.admin,other:g.other,period:g.period,
+    opProfit,tax,net:opProfit-tax,
+    margin:s.net?gross/s.net*100:0,
+    netMargin:s.net?(opProfit-tax)/s.net*100:0};
+}
+
+/* --- Cash flow --- */
+function cashFlow(){
+  const bIn=cur(S.bank).reduce((a,r)=>a+num(r.in),0);
+  const bOut=cur(S.bank).reduce((a,r)=>a+num(r.out),0);
+  const kIn=cur(S.kassa).reduce((a,r)=>a+num(r.in),0);
+  const kOut=cur(S.kassa).reduce((a,r)=>a+num(r.out),0);
+  const ob=num((S.openCash||{}).bank), ok=num((S.openCash||{}).kassa);
+  return {bIn,bOut,kIn,kOut,ob,ok,
+    bEnd:ob+bIn-bOut, kEnd:ok+kIn-kOut,
+    totIn:bIn+kIn,totOut:bOut+kOut,
+    start:ob+ok, end:ob+ok+bIn+kIn-bOut-kOut};
+}
+function cfByCode(){
+  const m={};
+  const add=(c,inV,outV)=>{if(!c)c='—';
+    m[c]=m[c]||{in:0,out:0}; m[c].in+=inV; m[c].out+=outV};
+  cur(S.bank).forEach(r=>add(r.ccode,num(r.in),num(r.out)));
+  cur(S.kassa).forEach(r=>add(r.ccode,num(r.in),num(r.out)));
+  return m;
+}
+
+/* --- Debitor / Kreditor --- */
+function ledger(kind){
+  const src=kind==='ar'?S.ar:S.ap;
+  const map={};
+  (src||[]).forEach(r=>{
+    const k=r.org||'—';
+    map[k]=map[k]||{org:k,ob:0,dt:0,kt:0};
+    if(Number(r.m)<S.month)map[k].ob+=num(r.dt)-num(r.kt);
+    else if(Number(r.m)===S.month){map[k].dt+=num(r.dt);map[k].kt+=num(r.kt)}
+  });
+  return Object.values(map).map(x=>({...x,end:x.ob+x.dt-x.kt}))
+    .filter(x=>x.ob||x.dt||x.kt);
+}
+
+/* --- Balans --- */
+function calcBalance(){
+  const cf=cashFlow();
+  const mat=matBalance().reduce((a,x)=>a+x.cv,0);
+  const arT=ledger('ar').reduce((a,x)=>a+Math.max(x.end,0),0);
+  const apT=ledger('ap').reduce((a,x)=>a+Math.max(-x.end,0),0);
+  const pl=calcPL();
+  const assets=cf.end+mat+arT;
+  return {cash:cf.end,mat,ar:arT,assets,ap:apT,
+    equity:assets-apT,profit:pl.net};
+}
+
+/* --- Division split (Распределение) --- */
+function divisionSplit(){
+  const rows=[];
+  DIVS.forEach(d=>{
+    const rev=cur(S.sales).filter(r=>r.div===d)
+      .reduce((a,r)=>{const x=num(r.qty)*num(r.price);return a+(r.vat==='ndsli'?x/(1+NDS):x)},0);
+    const exp=[...cur(S.bank),...cur(S.kassa)].filter(r=>r.div===d)
+      .reduce((a,r)=>a+num(r.out),0);
+    const qty=cur(S.sales).filter(r=>r.div===d).reduce((a,r)=>a+num(r.qty),0);
+    if(rev||exp)rows.push({div:d,rev,exp,profit:rev-exp,qty,
+      margin:rev?(rev-exp)/rev*100:0});
+  });
+  return rows;
+}
+
+/* --- Oylik trend --- */
+function trend(){
+  const keep=S.month; const out=[];
+  for(let m=1;m<=12;m++){
+    S.month=m;
+    const pl=calcPL();
+    out.push({m,rev:pl.revenue,cogs:pl.cogs,exp:pl.period,profit:pl.net});
+  }
+  S.month=keep; return out;
+}
+
+/* ============ TABS ============ */
+const TABS=[
+ ['dash','Boshqaruv paneli'],['bank','Bank'],['kassa','Kassa'],
+ ['sales','Sotuv (GP)'],['prod','Ishlab chiqarish'],['mat','Xomashyo'],
+ ['cogs','Tannarx'],['pl','OFR (Foyda)'],['cf','Cash Flow'],
+ ['ar','Debitor/Kreditor'],['bal','Balans'],['div','Bo\'linmalar'],
+ ['ref','Ma\'lumotnoma']];
+let TAB='dash';
+
+function boot(){
+  load();
+  $('gMonth').innerHTML=MONTHS.map((n,i)=>
+    `<option value="${i+1}">${n} ${S.year}</option>`).join('');
+  $('gMonth').value=S.month;
+  $('gRate').value=S.rate;
+  $('gRate').oninput=()=>{S.rate=num($('gRate').value)||1;save();render()};
+  $('nav').innerHTML=TABS.map(([k,n])=>
+    `<button data-t="${k}" onclick="go('${k}')">${n}</button>`).join('');
+  $('main').innerHTML=TABS.map(([k])=>`<div class="page" id="p_${k}"></div>`).join('');
+  go('dash');
+}
+function go(t){TAB=t;
+  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
+  document.querySelectorAll('.page').forEach(p=>p.classList.toggle('on',p.id==='p_'+t));
+  render()}
+function setMonth(){S.month=Number($('gMonth').value);save();render()}
+function render(){const f=({dash:vDash,bank:vBank,kassa:vKassa,sales:vSales,prod:vProd,
+  mat:vMat,cogs:vCogs,pl:vPL,cf:vCF,ar:vAR,bal:vBal,div:vDiv,ref:vRef})[TAB];
+  if(f)$('p_'+TAB).innerHTML=f()}
+
+function head(t,s,extra=''){return `<div class="head"><div><h2>${t}</h2>
+  <p>${s}</p></div><div class="spacer"></div>${extra}</div>`}
+
+/* ============ GENERIC GRID ============ */
+/* cols: [{k,label,type,opts,w,calc}] */
+function grid(key,cols,rows){
+  const h=cols.map(c=>`<th class="${c.type==='n'?'n':''}">${c.label}</th>`).join('');
+  const body=rows.length?rows.map((r,i)=>{
+    const idx=S[key].indexOf(r);
+    return `<tr>`+cols.map(c=>{
+      if(c.calc)return `<td class="n">${fmtU(c.calc(r))}</td>`;
+      const v=esc(r[c.k]??'');
+      if(c.opts)return `<td><select onchange="upd('${key}',${idx},'${c.k}',this.value)"
+        style="width:100%;border:0;background:none;font:inherit;padding:2px">
+        ${c.opts().map(o=>`<option ${o.v==r[c.k]?'selected':''} value="${esc(o.v)}">${esc(o.t)}</option>`).join('')}
+        </select></td>`;
+      return `<td class="${c.type==='n'?'n':''}"><input value="${v}"
+        type="${c.type==='n'?'number':c.type==='d'?'date':'text'}"
+        oninput="upd('${key}',${idx},'${c.k}',this.value)"
+        style="width:100%;border:0;background:none;font:inherit;padding:2px;
+        ${c.type==='n'?'text-align:right;font-family:ui-monospace':''}"></td>`;
+    }).join('')+`<td style="width:34px"><button class="btn r sm"
+      onclick="del('${key}',${idx})">✕</button></td></tr>`;
+  }).join(''):`<tr><td colspan="${cols.length+1}" class="empty">
+    Bu oy uchun yozuv yo'q. "Qator qo'shish" tugmasini bosing.</td></tr>`;
+  return `<div class="scroll"><table><thead><tr>${h}<th></th></tr></thead>
+    <tbody>${body}</tbody></table></div>`;
+}
+function upd(key,i,k,v){S[key][i][k]=v;save();
+  if(['qty','price','in','out','ecode','vat','div','code'].includes(k))render()}
+function del(key,i){S[key].splice(i,1);save();render()}
+function addRow(key,tpl){S[key].push(Object.assign({m:S.month},tpl));save();render()}
+
+const optOrg=()=>[{v:'',t:'—'}].concat(REF.orgs.map(o=>({v:o.name,t:o.name})));
+const optExp=()=>[{v:'',t:'— kod —'}].concat(REF.expenseCodes.map(c=>({v:c.code,t:c.code+' '+c.name.slice(0,46)})));
+const optCF=()=>[{v:'',t:'— kod —'}].concat(REF.cashflowCodes.map(c=>({v:c.code,t:c.code+' '+c.name.slice(0,46)})));
+const optGP=()=>REF.products.map(p=>({v:p.code,t:p.name}));
+const optMat=()=>REF.materials.map(p=>({v:p.code,t:p.name}));
+const optDiv=()=>[{v:'',t:'—'}].concat(DIVS.map(d=>({v:d,t:d})));
+const optCash=()=>CASH.map(d=>({v:d,t:d}));
+const optVat=()=>[{v:'ndsli',t:'NDS bilan'},{v:'ndssiz',t:'NDS siz'}];
+
+/* ============ DASHBOARD ============ */
+function vDash(){
+  const pl=calcPL(),cf=cashFlow(),s=calcSales(),c=calcCOGS(),b=calcBalance();
+  const t=trend();
+  const mx=Math.max(...t.map(x=>Math.abs(x.rev)),1);
+  return head('Boshqaruv paneli',`${MONTHS[S.month-1]} ${S.year} · kurs 1$=${fmtU(S.rate)} so'm`)
+  +`<div class="kpis">
+   ${kpi('Sof tushum',fmtU(pl.revenue),'$'+usd(pl.revenue),'pos')}
+   ${kpi('Tannarx',fmtU(pl.cogs),'birlik: '+fmtU(c.perUnit)+" so'm")}
+   ${kpi('Yalpi foyda',fmtU(pl.gross),'rentabellik '+fmt(pl.margin,1)+'%',pl.gross<0?'neg':'pos')}
+   ${kpi('Davr xarajati',fmtU(pl.period),'sotuv+admin+boshqa')}
+   ${kpi('Sof foyda',fmtU(pl.net),fmt(pl.netMargin,1)+'% · $'+usd(pl.net),pl.net<0?'neg':'pos')}
+   ${kpi('Pul qoldiq',fmtU(cf.end),'bank '+fmtU(cf.bEnd)+' · kassa '+fmtU(cf.kEnd))}
+  </div>
+  <div class="card"><h3>Oylik dinamika</h3>
+   <div class="scroll" style="max-height:none"><table>
+   <thead><tr><th>Oy</th><th class="n">Tushum</th><th class="n">Tannarx</th>
+   <th class="n">Xarajat</th><th class="n">Sof foyda</th><th style="width:160px">Ulush</th></tr></thead>
+   <tbody>${t.map(x=>`<tr ${x.m===S.month?'style="background:#f0f4f2;font-weight:600"':''}>
+     <td>${MONTHS[x.m-1]}</td><td class="n">${fmtU(x.rev)}</td>
+     <td class="n">${fmtU(x.cogs)}</td><td class="n">${fmtU(x.exp)}</td>
+     <td class="n" style="color:${x.profit<0?'var(--bad)':'var(--accent)'}">${fmtU(x.profit)}</td>
+     <td><div class="bar"><i style="width:${Math.abs(x.rev)/mx*100}%"></i></div></td></tr>`).join('')}
+   </tbody></table></div></div>
+  <div class="card"><h3>Bo'linmalar kesimida</h3>${divTable()}</div>`;
+}
+function kpi(l,v,s,cls=''){return `<div class="kpi ${cls}"><div class="l">${l}</div>
+  <div class="v">${v}</div><div class="s">${s}</div></div>`}
+
+/* ============ BANK / KASSA ============ */
+function vBank(){
+  const cf=cashFlow();
+  return head('Bank operatsiyalari',"Kirim/chiqim, xarajat kodi va cash flow kodi bilan",
+    `<button class="btn" onclick="addRow('bank',{d:'',org:'',note:'',in:0,out:0,ecode:'',ccode:'',div:''})">+ Qator qo'shish</button>`)
+  +`<div class="kpis">
+    ${kpi('Boshlang\'ich',fmtU(cf.ob),'')}
+    ${kpi('Kirim',fmtU(cf.bIn),'')}${kpi('Chiqim',fmtU(cf.bOut),'')}
+    ${kpi('Oxirgi qoldiq',fmtU(cf.bEnd),'$'+usd(cf.bEnd),cf.bEnd<0?'neg':'pos')}</div>
+   <div class="card">${grid('bank',[
+    {k:'d',label:'Sana',type:'d'},{k:'org',label:'Kontragent',opts:optOrg},
+    {k:'note',label:'Izoh'},{k:'in',label:'Kirim',type:'n'},{k:'out',label:'Chiqim',type:'n'},
+    {k:'ecode',label:'Xarajat kodi',opts:optExp},{k:'ccode',label:'CF kodi',opts:optCF},
+    {k:'div',label:'Bo\'linma',opts:optDiv}],cur(S.bank))}
+   <div class="hint">Boshlang'ich qoldiq: <input type="number" value="${num((S.openCash||{}).bank)}"
+     onchange="S.openCash=S.openCash||{};S.openCash.bank=num(this.value);save();render()"
+     style="padding:4px 8px;border:1px solid var(--line);border-radius:6px;width:150px"></div></div>`;
+}
+function vKassa(){
+  const cf=cashFlow();
+  return head('Kassa operatsiyalari','Naqd pul kirim va chiqimi',
+    `<button class="btn" onclick="addRow('kassa',{d:'',cash:'Ofis kassa',org:'',note:'',in:0,out:0,ecode:'',ccode:'',div:''})">+ Qator qo'shish</button>`)
+  +`<div class="kpis">${kpi('Boshlang\'ich',fmtU(cf.ok),'')}
+    ${kpi('Kirim',fmtU(cf.kIn),'')}${kpi('Chiqim',fmtU(cf.kOut),'')}
+    ${kpi('Oxirgi qoldiq',fmtU(cf.kEnd),'$'+usd(cf.kEnd),cf.kEnd<0?'neg':'pos')}</div>
+   <div class="card">${grid('kassa',[
+    {k:'d',label:'Sana',type:'d'},{k:'cash',label:'Kassa',opts:optCash},
+    {k:'org',label:'Kontragent',opts:optOrg},{k:'note',label:'Izoh'},
+    {k:'in',label:'Kirim',type:'n'},{k:'out',label:'Chiqim',type:'n'},
+    {k:'ecode',label:'Xarajat kodi',opts:optExp},{k:'ccode',label:'CF kodi',opts:optCF},
+    {k:'div',label:'Bo\'linma',opts:optDiv}],cur(S.kassa))}
+   <div class="hint">Boshlang'ich qoldiq: <input type="number" value="${num((S.openCash||{}).kassa)}"
+     onchange="S.openCash=S.openCash||{};S.openCash.kassa=num(this.value);save();render()"
+     style="padding:4px 8px;border:1px solid var(--line);border-radius:6px;width:150px"></div></div>`;
+}
+
+/* ============ SALES ============ */
+function vSales(){
+  const s=calcSales();
+  return head('Tayyor mahsulot sotuvi','Miqdor × narx → NDS ajratilib sof tushum hisoblanadi',
+    `<button class="btn" onclick="addRow('sales',{d:'',org:'',code:'1',qty:0,price:0,vat:'ndsli',div:''})">+ Qator qo'shish</button>`)
+  +`<div class="kpis">${kpi('Jami (NDS bilan)',fmtU(s.gross),'')}
+   ${kpi('NDS 12%',fmtU(s.vat),'')}${kpi('Sof tushum',fmtU(s.net),'$'+usd(s.net),'pos')}
+   ${kpi('Miqdor',fmt(s.qty,0),'m³')}</div>
+   <div class="card">${grid('sales',[
+    {k:'d',label:'Sana',type:'d'},{k:'org',label:'Xaridor',opts:optOrg},
+    {k:'code',label:'Mahsulot',opts:optGP},{k:'qty',label:'Miqdor',type:'n'},
+    {k:'price',label:'Narx',type:'n'},{k:'vat',label:'NDS',opts:optVat},
+    {k:'div',label:'Bo\'linma',opts:optDiv},
+    {k:'_s',label:'Summa',type:'n',calc:r=>num(r.qty)*num(r.price)},
+    {k:'_n',label:'NDS siz',type:'n',calc:r=>{const a=num(r.qty)*num(r.price);
+      return r.vat==='ndsli'?a/1.12:a}}],cur(S.sales))}</div>
+   <div class="card"><h3>Mahsulot kesimida</h3><table>
+   <thead><tr><th>Mahsulot</th><th class="n">Ishlab chiq.</th><th class="n">Sotildi</th>
+   <th class="n">Qoldiq</th><th class="n">O'rt. narx</th><th class="n">Tushum</th>
+   <th class="n">Tannarx</th><th class="n">Foyda</th></tr></thead><tbody>
+   ${fgBalance().map(x=>`<tr><td>${esc(x.name)}</td><td class="n">${fmt(x.inq)}</td>
+    <td class="n">${fmt(x.outq)}</td><td class="n">${fmt(x.bal)}</td>
+    <td class="n">${fmtU(x.avgPrice)}</td><td class="n">${fmtU(x.rev)}</td>
+    <td class="n">${fmtU(x.cost)}</td>
+    <td class="n" style="color:${x.profit<0?'var(--bad)':'var(--accent)'}">${fmtU(x.profit)}</td></tr>`).join('')}
+   </tbody></table></div>`;
+}
+
+/* ============ PRODUCTION ============ */
+function vProd(){
+  const q=cur(S.prod).reduce((a,r)=>a+num(r.qty),0);
+  return head('Ishlab chiqarish (GP kirimi)','Omborga kirim qilingan tayyor mahsulot',
+    `<button class="btn" onclick="addRow('prod',{d:'',code:'1',qty:0,div:''})">+ Qator qo'shish</button>`)
+  +`<div class="kpis">${kpi('Ishlab chiqarildi',fmt(q),'m³')}
+    ${kpi('Birlik tannarxi',fmtU(calcCOGS().perUnit),"so'm/m³")}</div>
+   <div class="card">${grid('prod',[{k:'d',label:'Sana',type:'d'},
+    {k:'code',label:'Mahsulot',opts:optGP},{k:'qty',label:'Miqdor',type:'n'},
+    {k:'div',label:'Bo\'linma',opts:optDiv}],cur(S.prod))}</div>`;
+}
+
+/* ============ MATERIALS ============ */
+function vMat(){
+  const b=matBalance();
+  return head('Xomashyo va ehtiyot qismlar',"Kirim, sarf va qoldiq — o'rtacha narx bo'yicha")
+  +`<div class="card"><h3>Kirim</h3>
+    <div class="row" style="margin-bottom:10px"><button class="btn"
+      onclick="addRow('matIn',{d:'',org:'',code:'1',qty:0,price:0,div:''})">+ Kirim qo'shish</button></div>
+    ${grid('matIn',[{k:'d',label:'Sana',type:'d'},{k:'org',label:'Yetkazuvchi',opts:optOrg},
+    {k:'code',label:'Xomashyo',opts:optMat},{k:'qty',label:'Miqdor',type:'n'},
+    {k:'price',label:'Narx',type:'n'},{k:'div',label:'Bo\'linma',opts:optDiv},
+    {k:'_s',label:'Summa',type:'n',calc:r=>num(r.qty)*num(r.price)}],cur(S.matIn))}</div>
+   <div class="card"><h3>Sarf (ishlab chiqarishga)</h3>
+    <div class="row" style="margin-bottom:10px"><button class="btn"
+      onclick="addRow('matOut',{d:'',code:'1',qty:0,div:''})">+ Sarf qo'shish</button></div>
+    ${grid('matOut',[{k:'d',label:'Sana',type:'d'},{k:'code',label:'Xomashyo',opts:optMat},
+    {k:'qty',label:'Miqdor',type:'n'},{k:'div',label:'Bo\'linma',opts:optDiv}],cur(S.matOut))}</div>
+   <div class="card"><h3>Ombor aylanmasi</h3><table>
+    <thead><tr><th>Xomashyo</th><th class="n">Bosh. miqdor</th><th class="n">Bosh. summa</th>
+    <th class="n">Kirim</th><th class="n">Kirim summa</th><th class="n">Sarf</th>
+    <th class="n">Sarf summa</th><th class="n">Qoldiq</th><th class="n">Qoldiq summa</th>
+    <th class="n">O'rt. narx</th></tr></thead><tbody>
+    ${b.map(x=>`<tr><td>${esc(x.name)} <span class="tag">${esc(x.unit)}</span></td>
+     <td class="n">${fmt(x.oq)}</td><td class="n">${fmtU(x.ov)}</td>
+     <td class="n">${fmt(x.iq)}</td><td class="n">${fmtU(x.iv)}</td>
+     <td class="n">${fmt(x.oq2)}</td><td class="n">${fmtU(x.ov2)}</td>
+     <td class="n">${fmt(x.cq)}</td><td class="n">${fmtU(x.cv)}</td>
+     <td class="n">${fmtU(x.avg)}</td></tr>`).join('')}
+    <tr class="total"><td>JAMI</td><td class="n"></td><td class="n">${fmtU(b.reduce((a,x)=>a+x.ov,0))}</td>
+     <td class="n"></td><td class="n">${fmtU(b.reduce((a,x)=>a+x.iv,0))}</td>
+     <td class="n"></td><td class="n">${fmtU(b.reduce((a,x)=>a+x.ov2,0))}</td>
+     <td class="n"></td><td class="n">${fmtU(b.reduce((a,x)=>a+x.cv,0))}</td><td></td></tr>
+    </tbody></table></div>`;
+}
+
+/* ============ COGS ============ */
+function vCogs(){
+  const c=calcCOGS(),g=expenseGroups(),m=expenseByCode();
+  const prodCodes=REF.expenseCodes.filter(x=>x.code.startsWith('20')&&m[x.code]);
+  return head('Tannarx tarkibi','Xomashyo sarfi + ishlab chiqarish xarajatlari')
+  +`<div class="kpis">${kpi('Xomashyo sarfi',fmtU(c.matUsed),'')}
+    ${kpi('Ishlab chiq. xarajati',fmtU(c.prodExp),'')}
+    ${kpi('Jami tannarx',fmtU(c.total),'$'+usd(c.total))}
+    ${kpi('Birlik tannarxi',fmtU(c.perUnit),fmt(c.prodQty)+' m³ uchun')}</div>
+   <div class="card"><h3>Ishlab chiqarish xarajatlari (2010–2039)</h3><table>
+   <thead><tr><th>Kod</th><th>Nomi</th><th class="n">Summa (UZS)</th>
+   <th class="n">USD</th><th class="n">Ulush</th></tr></thead><tbody>
+   ${prodCodes.map(x=>`<tr><td class="mono">${x.code}</td><td>${esc(x.name)}</td>
+     <td class="n">${fmtU(m[x.code])}</td><td class="n">${usd(m[x.code])}</td>
+     <td class="n">${fmt(c.prodExp?m[x.code]/c.prodExp*100:0,1)}%</td></tr>`).join('')
+     ||`<tr><td colspan="5" class="empty">Xarajat kodi belgilangan yozuv yo'q</td></tr>`}
+   <tr class="total"><td></td><td>JAMI</td><td class="n">${fmtU(c.prodExp)}</td>
+    <td class="n">${usd(c.prodExp)}</td><td class="n">100%</td></tr>
+   </tbody></table></div>`;
+}
+
+/* ============ P&L ============ */
+function vPL(){
+  const p=calcPL();
+  const R=(n,code,v,cls='')=>`<tr class="${cls}"><td>${n}</td>
+    <td class="mono">${code}</td><td class="n">${fmtU(v)}</td>
+    <td class="n">${usd(v)}</td>
+    <td class="n">${fmt(p.revenue?v/p.revenue*100:0,1)}%</td></tr>`;
+  return head('Moliyaviy natijalar to\'g\'risida hisobot (OFR)',
+    `${MONTHS[S.month-1]} ${S.year} · ООО "PROFIT DIVIDER"`)
+  +`<div class="card"><table>
+   <thead><tr><th>Ko'rsatkich</th><th>Kod</th><th class="n">UZS</th>
+   <th class="n">USD</th><th class="n">Tushumga %</th></tr></thead><tbody>
+   ${R('Sof tushum (NDS siz)','010',p.revenue)}
+   ${R('Sotilgan mahsulot tannarxi','020',p.cogs)}
+   ${R('Yalpi foyda','030',p.gross,'total')}
+   <tr class="grp"><td colspan="5">Davr xarajatlari</td></tr>
+   ${R('Sotuv xarajatlari','050',p.sell)}
+   ${R('Ma\'muriy xarajatlar','060',p.admin)}
+   ${R('Boshqa operatsion xarajatlar','070',p.other)}
+   ${R('Jami davr xarajatlari','040',p.period,'total')}
+   ${R('Operatsion foyda','—',p.opProfit,'total')}
+   ${R('Foyda solig\'i (15%)','—',p.tax)}
+   ${R('SOF FOYDA','—',p.net,'total')}
+   </tbody></table>
+   <div class="hint">Yalpi rentabellik ${fmt(p.margin,1)}% · sof rentabellik ${fmt(p.netMargin,1)}%</div>
+   </div>`;
+}
+
+/* ============ CASH FLOW ============ */
+function vCF(){
+  const cf=cashFlow(),m=cfByCode();
+  const rows=REF.cashflowCodes.filter(c=>m[c.code]);
+  return head('Pul oqimi (Cash Flow)','Bank va kassa bo\'yicha kodlar kesimida')
+  +`<div class="kpis">${kpi('Davr boshi',fmtU(cf.start),'')}
+    ${kpi('Jami kirim',fmtU(cf.totIn),'$'+usd(cf.totIn),'pos')}
+    ${kpi('Jami chiqim',fmtU(cf.totOut),'$'+usd(cf.totOut))}
+    ${kpi('Davr oxiri',fmtU(cf.end),'$'+usd(cf.end),cf.end<0?'neg':'pos')}</div>
+   <div class="card"><table><thead><tr><th>Kod</th><th>Nomi</th>
+    <th class="n">Kirim</th><th class="n">Chiqim</th><th class="n">Sof</th></tr></thead><tbody>
+    ${rows.map(c=>`<tr><td class="mono">${c.code}</td><td>${esc(c.name)}</td>
+     <td class="n">${fmtU(m[c.code].in)}</td><td class="n">${fmtU(m[c.code].out)}</td>
+     <td class="n">${fmtU(m[c.code].in-m[c.code].out)}</td></tr>`).join('')
+     ||`<tr><td colspan="5" class="empty">Cash flow kodi belgilangan yozuv yo'q</td></tr>`}
+    <tr class="total"><td></td><td>JAMI</td><td class="n">${fmtU(cf.totIn)}</td>
+     <td class="n">${fmtU(cf.totOut)}</td><td class="n">${fmtU(cf.totIn-cf.totOut)}</td></tr>
+    </tbody></table></div>
+   <div class="card"><h3>Manbalar bo'yicha</h3><table>
+    <thead><tr><th></th><th class="n">Boshi</th><th class="n">Kirim</th>
+    <th class="n">Chiqim</th><th class="n">Oxiri</th></tr></thead><tbody>
+    <tr><td>Bank</td><td class="n">${fmtU(cf.ob)}</td><td class="n">${fmtU(cf.bIn)}</td>
+     <td class="n">${fmtU(cf.bOut)}</td><td class="n">${fmtU(cf.bEnd)}</td></tr>
+    <tr><td>Kassa</td><td class="n">${fmtU(cf.ok)}</td><td class="n">${fmtU(cf.kIn)}</td>
+     <td class="n">${fmtU(cf.kOut)}</td><td class="n">${fmtU(cf.kEnd)}</td></tr>
+    <tr class="total"><td>JAMI</td><td class="n">${fmtU(cf.start)}</td>
+     <td class="n">${fmtU(cf.totIn)}</td><td class="n">${fmtU(cf.totOut)}</td>
+     <td class="n">${fmtU(cf.end)}</td></tr></tbody></table></div>`;
+}
+
+/* ============ AR / AP ============ */
+function vAR(){
+  const ar=ledger('ar'),ap=ledger('ap');
+  const T=(rows,lbl)=>`<table><thead><tr><th>Tashkilot</th>
+   <th class="n">Oy boshiga</th><th class="n">Debet</th><th class="n">Kredit</th>
+   <th class="n">Oy oxiriga</th></tr></thead><tbody>
+   ${rows.map(x=>`<tr><td>${esc(x.org)}</td><td class="n">${fmtU(x.ob)}</td>
+    <td class="n">${fmtU(x.dt)}</td><td class="n">${fmtU(x.kt)}</td>
+    <td class="n" style="font-weight:600">${fmtU(x.end)}</td></tr>`).join('')
+    ||`<tr><td colspan="5" class="empty">${lbl} yozuvlari yo'q</td></tr>`}
+   <tr class="total"><td>JAMI</td><td class="n">${fmtU(rows.reduce((a,x)=>a+x.ob,0))}</td>
+    <td class="n">${fmtU(rows.reduce((a,x)=>a+x.dt,0))}</td>
+    <td class="n">${fmtU(rows.reduce((a,x)=>a+x.kt,0))}</td>
+    <td class="n">${fmtU(rows.reduce((a,x)=>a+x.end,0))}</td></tr></tbody></table>`;
+  return head('Debitor va kreditor qarzlar','Debet — bizdan qarzdor, Kredit — biz qarzdormiz')
+  +`<div class="card"><h3>Debitorlar (xaridorlar)</h3>
+    <div class="row" style="margin-bottom:10px"><button class="btn"
+     onclick="addRow('ar',{org:'',note:'',dt:0,kt:0})">+ Qator qo'shish</button></div>
+    ${grid('ar',[{k:'org',label:'Tashkilot',opts:optOrg},{k:'note',label:'Izoh'},
+     {k:'dt',label:'Debet (ortdi)',type:'n'},{k:'kt',label:'Kredit (to\'lov)',type:'n'}],cur(S.ar))}
+    <div style="margin-top:14px">${T(ar,'Debitor')}</div></div>
+   <div class="card"><h3>Kreditorlar (yetkazuvchilar)</h3>
+    <div class="row" style="margin-bottom:10px"><button class="btn"
+     onclick="addRow('ap',{org:'',note:'',dt:0,kt:0})">+ Qator qo'shish</button></div>
+    ${grid('ap',[{k:'org',label:'Tashkilot',opts:optOrg},{k:'note',label:'Izoh'},
+     {k:'dt',label:'Debet (to\'lov)',type:'n'},{k:'kt',label:'Kredit (ortdi)',type:'n'}],cur(S.ap))}
+    <div style="margin-top:14px">${T(ap,'Kreditor')}</div></div>`;
+}
+
+/* ============ BALANCE ============ */
+function vBal(){
+  const b=calcBalance(),cf=cashFlow();
+  const R=(n,v,cls='')=>`<tr class="${cls}"><td>${n}</td>
+   <td class="n">${fmtU(v)}</td><td class="n">${usd(v)}</td></tr>`;
+  return head('Balans','Aktiv va passiv holati oy oxiriga')
+  +`<div class="card"><h3>Aktivlar</h3><table>
+   <thead><tr><th>Ko'rsatkich</th><th class="n">UZS</th><th class="n">USD</th></tr></thead><tbody>
+   ${R('Pul mablag\'lari (bank)',cf.bEnd)}
+   ${R('Pul mablag\'lari (kassa)',cf.kEnd)}
+   ${R('Xomashyo va materiallar',b.mat)}
+   ${R('Debitorlik qarzi',b.ar)}
+   ${R('JAMI AKTIVLAR',b.assets,'total')}
+   </tbody></table></div>
+   <div class="card"><h3>Passivlar</h3><table>
+   <thead><tr><th>Ko'rsatkich</th><th class="n">UZS</th><th class="n">USD</th></tr></thead><tbody>
+   ${R('Kreditorlik qarzi',b.ap)}
+   ${R('Xususiy kapital (hisobiy)',b.equity)}
+   ${R('shu jumladan davr foydasi',b.profit)}
+   ${R('JAMI PASSIVLAR',b.assets,'total')}
+   </tbody></table>
+   <div class="hint">Xususiy kapital balansni tenglashtirish uchun hisoblab chiqariladi.</div></div>`;
+}
+
+/* ============ DIVISIONS ============ */
+function divTable(){
+  const rows=divisionSplit();
+  if(!rows.length)return `<div class="empty">Bo'linma belgilangan yozuv yo'q.
+    Bank/Kassa/Sotuv jadvallarida "Bo'linma" ustunini to'ldiring.</div>`;
+  const mx=Math.max(...rows.map(r=>Math.abs(r.rev)),1);
+  return `<table><thead><tr><th>Bo'linma</th><th class="n">Miqdor</th>
+   <th class="n">Tushum</th><th class="n">Xarajat</th><th class="n">Foyda</th>
+   <th class="n">Rent.</th><th style="width:140px"></th></tr></thead><tbody>
+   ${rows.map(r=>`<tr><td>${esc(r.div)}</td><td class="n">${fmt(r.qty)}</td>
+    <td class="n">${fmtU(r.rev)}</td><td class="n">${fmtU(r.exp)}</td>
+    <td class="n" style="color:${r.profit<0?'var(--bad)':'var(--accent)'}">${fmtU(r.profit)}</td>
+    <td class="n">${fmt(r.margin,1)}%</td>
+    <td><div class="bar"><i style="width:${Math.abs(r.rev)/mx*100}%"></i></div></td></tr>`).join('')}
+   <tr class="total"><td>JAMI</td><td class="n">${fmt(rows.reduce((a,r)=>a+r.qty,0))}</td>
+    <td class="n">${fmtU(rows.reduce((a,r)=>a+r.rev,0))}</td>
+    <td class="n">${fmtU(rows.reduce((a,r)=>a+r.exp,0))}</td>
+    <td class="n">${fmtU(rows.reduce((a,r)=>a+r.profit,0))}</td><td></td><td></td></tr>
+   </tbody></table>`;
+}
+function vDiv(){
+  return head('Bo\'linmalar bo\'yicha taqsimot','Tushum va xarajatlar bo\'linmalar kesimida')
+   +`<div class="card">${divTable()}</div>`;
+}
+
+/* ============ REFERENCE ============ */
+function vRef(){
+  const t=(title,rows,cols)=>`<div class="card"><h3>${title} (${rows.length})</h3>
+   <div class="scroll" style="max-height:340px"><table><thead><tr>
+   ${cols.map(c=>`<th>${c[0]}</th>`).join('')}</tr></thead><tbody>
+   ${rows.map(r=>`<tr>${cols.map(c=>`<td>${esc(c[1](r))}</td>`).join('')}</tr>`).join('')}
+   </tbody></table></div></div>`;
+  return head('Ma\'lumotnomalar','Excel faylidan olingan kodlar va ro\'yxatlar',
+    `<button class="btn g" onclick="reseed()">Namuna ma'lumotni tiklash</button>
+    <button class="btn g" onclick="wipe()">Hammasini tozalash</button>`)
+  +t('Xarajat kodlari',REF.expenseCodes,[['Kod',r=>r.code],['Nomi',r=>r.name]])
+  +t('Cash flow kodlari',REF.cashflowCodes,[['Kod',r=>r.code],['Nomi',r=>r.name]])
+  +t('Tashkilotlar reestri',REF.orgs,[['INN',r=>r.inn],['Nomi',r=>r.name],
+     ['Guruh',r=>r.group],['NDS',r=>r.vat]])
+  +t('Tayyor mahsulot',REF.products,[['Kod',r=>r.code],['Nomi',r=>r.name],['O\'lchov',r=>r.unit]])
+  +t('Xomashyo',REF.materials,[['Kod',r=>r.code],['Nomi',r=>r.name],['O\'lchov',r=>r.unit]]);
+}
+function reseed(){if(confirm("Joriy ma'lumot namuna ma'lumot bilan almashtiriladi. Davom etamizmi?")){
+  Object.assign(S,JSON.parse(JSON.stringify(DEMO)));save();render()}}
+function wipe(){if(confirm("Barcha kiritilgan ma'lumot o'chiriladi. Davom etamizmi?")){
+  localStorage.removeItem(K);location.reload()}}
+
+/* ============ EXPORT ============ */
+function doExport(){
+  const pl=calcPL(),cf=cashFlow(),c=calcCOGS();
+  const L=[];
+  const push=(...a)=>L.push(a.map(x=>`"${String(x??'').replace(/"/g,'""')}"`).join(';'));
+  push('PROFIT DIVIDER — '+MONTHS[S.month-1]+' '+S.year);
+  push('');push('OFR','UZS','USD');
+  push('Sof tushum',pl.revenue,pl.revenue/S.rate);
+  push('Tannarx',pl.cogs,pl.cogs/S.rate);
+  push('Yalpi foyda',pl.gross,pl.gross/S.rate);
+  push('Davr xarajatlari',pl.period,pl.period/S.rate);
+  push('Sof foyda',pl.net,pl.net/S.rate);
+  push('');push('CASH FLOW');
+  push('Davr boshi',cf.start);push('Kirim',cf.totIn);
+  push('Chiqim',cf.totOut);push('Davr oxiri',cf.end);
+  push('');push('BANK');push('Sana','Kontragent','Izoh','Kirim','Chiqim','Kod');
+  cur(S.bank).forEach(r=>push(r.d,r.org,r.note,num(r.in),num(r.out),r.ecode));
+  push('');push('KASSA');push('Sana','Kassa','Kontragent','Izoh','Kirim','Chiqim','Kod');
+  cur(S.kassa).forEach(r=>push(r.d,r.cash,r.org,r.note,num(r.in),num(r.out),r.ecode));
+  push('');push('SOTUV');push('Sana','Xaridor','Mahsulot','Miqdor','Narx','Summa');
+  cur(S.sales).forEach(r=>push(r.d,r.org,
+    (REF.products.find(p=>p.code==r.code)||{}).name,num(r.qty),num(r.price),
+    num(r.qty)*num(r.price)));
+  const blob=new Blob(['\ufeff'+L.join('\n')],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=`PROFIT_DIVIDER_${MONTHS[S.month-1]}_${S.year}.csv`;a.click();
+}
+
+boot();
+</script>
+</body></html>

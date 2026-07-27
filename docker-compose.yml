@@ -1,0 +1,46 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: finasist_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: finasist
+      POSTGRES_PASSWORD: finasist
+      POSTGRES_DB: finasist
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U finasist"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    container_name: finasist_backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://finasist:finasist@db:5432/finasist
+      SECRET_KEY: change_me_in_production_2025
+      SUPERADMIN_EMAIL: admin@profitdivider.uz
+      SUPERADMIN_PASSWORD: Admin12345!
+      SUPERADMIN_NAME: Super Admin
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build: ./frontend
+    container_name: finasist_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+
+volumes:
+  pgdata:
