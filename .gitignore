@@ -1,22 +1,35 @@
-# Python
+# ===== Python =====
 __pycache__/
 *.py[cod]
+*$py.class
+*.so
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
 .venv/
 venv/
-*.egg-info/
+env/
+ENV/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 
-# Node / frontend
+# ===== Node / frontend =====
 node_modules/
-dist/
+frontend/dist/
 .vite/
 *.local
 
-# Env / secrets
+# ===== Env / secrets =====
 .env
 .env.local
 backend/.env
 
-# OS / editor
+# ===== OS / editor =====
 .DS_Store
 Thumbs.db
 .idea/
