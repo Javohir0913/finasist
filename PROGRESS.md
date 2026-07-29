@@ -1,97 +1,182 @@
-# PROFIT DIVIDER — Qurilish holati (checkpoint)
+# PROFIT DIVIDER — Qurilish holati
 
-> Manba (asosiy, source of truth): **`Баланс Август отчёт 2025-PROFIT DIVIDER.xlsx`** (48 varaq).
+> Manba (source of truth): **`Баланс Август отчёт 2025-PROFIT DIVIDER.xlsx`** (48 varaq).
 > HTML namuna (`PROFIT_DIVIDER_Web korgazma.html`) — yordamchi, unda xato bo'lishi mumkin.
-> Dizayn: **dark premium** (tasdiqlangan). Ma'lumot: **barcha kataloglar 0 balans bilan yuklangan**.
+> Dizayn: **dark premium**. Ma'lumot: **barcha kataloglar 0 balans bilan yuklangan**.
 
 ## Ishga tushirish
 ```bash
-docker compose up -d          # yoki --build
-docker compose down -v        # toza qayta yaratish (0-holat)
+docker compose up -d --build      # barcha servislar
+docker compose restart backend    # backend kodi o'zgarganda (manba mount qilingan)
+docker compose down -v            # toza qayta yaratish (0-holat)
 ```
-- Frontend: http://localhost:3000  · LAN: http://192.168.68.200:3000 (firewall 3000 port)
-- API/Swagger: http://localhost:8000/docs
+- Frontend: http://localhost:3000 · API/Swagger: http://localhost:8000/docs
 - PostgreSQL: localhost:**5434** (finasist/finasist)
 - Super-admin: **admin@profitdivider.uz** / **Admin12345!**
-- Excel struktura dumpi: `scratchpad/struct.txt` · Kataloglar JSON: `backend/app/seed_data.json`
+
+**Migratsiya**: `app/migrate.py` har startda modellarni `information_schema` bilan solishtirib,
+yetishmayotgan ustunlarni `ALTER TABLE ADD COLUMN` bilan qo'shadi. Hech narsa o'chirmaydi.
+**Seed idempotent**: har startda kataloglar to'ldiriladi, kiritilgan ma'lumot buzilmaydi.
 
 ---
 
-## ✅ TAYYOR va TESTLANGAN
+## ✅ EXCEL VARAQLARI ↔ WEB (48/48 qamrab olingan)
 
-### Poydevor
-- Auth (JWT) · RBAC (granular ruxsatlar, super-admin, default ruxsatsiz) · WebSocket real-time · Docker (db+backend+frontend) · PostgreSQL
-- Bug tuzatildi: tashkilot/foydalanuvchi o'chirishda FK himoyasi
-- Qoida: so'mли operatsiya sanasiga **kurs kiritilmagan bo'lsa bloklaydi**
+| Excel varaq | Web bo'limi |
+|---|---|
+| INFO зарплата, INFO | `/lookups` — kategoriya, guruh, status, holat, to'lov turi |
+| Зарплата, Зарплата (свод) | `/payroll` — 3 tab: hisob, obyektlar bo'yicha svod, xodimlar |
+| Офис Note, Офис қоплаши керак, РБП | `/ledgers` — `office` va `rbp` vedomostlari |
+| Баланс USD | Отчёты → **Баланс Ф№1** — schyot kodlari, «на начало»+«на конец», aktiv = passiv |
+| ОФР USD + Махстон/Турк/Жби | Отчёты → **ОФР** (to'liq Ф№2) + **ОФР по подразделениям** |
+| ВСЕГО расходы + Махстон/Турк/Жби | Отчёты → **Расходы** (БАНК/КАССА/ВСЕГО × UZS/USD) |
+| Курс доллара | `/exchange` |
+| ОСТАТОК UZS / USD | Отчёты → **Остатки по дням** (har hisob va kassa alohida ustun) |
+| БАНК, КАССА | `/transactions` (счёт, № док, МФО, ИНН корресп., назначение) |
+| CASH FLOW | Отчёты → **Cash Flow** — 3 bo'lim (операц./инвест./финанс.) + курсовая |
+| Курсовая разница | Отчёты → **Курсовая разница** (5 qator) + ОФР 120/130 qatorlari |
+| Дт Кт поставщ/покуп/СЕЙФ/прочие/услуги/З.п | `/ledgers` — 9 ta alohida vedomost |
+| Займы | `/loans` + harakatlar + Отчёты → **Займы** |
+| Налоги | `/taxes` + Отчёты → **Налоги** (avto-hisob) |
+| Полученные / Оказанные УСЛУГИ | `/services` |
+| Наименование ГП / сырья / запчастей | `/products`, `/materials` (232 zapchast yuklangan) |
+| Продажа Расход ГП, Производства Приход ГП | `/inventory` |
+| ГП оборот, Остаток ГП, С-сть ГП | Отчёты → **drobilkalar kesimida** (Махстон/Турк/Жби alohida) |
+| РЕЕСТР организации | `/organizations` (118 ta, vedomost bo'yicha tasniflangan) |
+| Приход сырья / запчастей, Расход, Склад оборот, Остаток | `/inventory` + Отчёты, **har obyekt alohida** |
+| Черновик | qasddan tashlab ketilgan (ish varag'i) |
 
-### ЭТАП 1 — Ma'lumotnomalar + Bank/Kassa + Cash Flow
-- Kataloglar yuklandi: **88 tashkilot, 95 xarajat kodi, 121 CF kodi, 7 bo'linma, 3 mahsulot, 3 xomashyo, 4 soliq turi**
-- Bank/Kassa registri: xarajat kodi / CF kodi / bo'linma **tanlash** bilan
-- Operatsiya → kontragent balansiga posting (USD + UZS)
-- Cash Flow (ДДС) hisoboti + xarajatlar kodlar bo'yicha
-- Sahifalar: `Transactions`, `Directories` (Справочники)
-
-### ЭТАП 3-4-5 — Ishlab chiqarish zanjiri (18/18 test o'tgan)
-- Xomashyo **Приход** (moving-average o'rtacha tannarx) / **Расход** (o'rtacha bo'yicha)
-- **Производство ГП** (себестоимость bilan) / **Продажа ГП** (НДС 12% + COGS + foyda)
-- Har o'zgarishda ombor+tannarx **to'liq qayta hisoblanadi** (buglarsiz)
-- Hisobotlar: **ОФР (Форма №2)**, **Баланс (Форма №1)**, **Дт-Кт vedomost**, Cash Flow, Расходы, Склад сырья, Склад ГП
-- Sahifalar: `Inventory` (4 tab), `Reports` (7 tab)
-- Backend: `routers/inventory.py`, `routers/reports.py`; frontend `pages/Inventory.tsx`, `pages/Reports.tsx`
-
----
-
-## ✅ ЭТАП 6 — Зарплата (TAYYOR, 10/10 test)
-- Backend `routers/payroll.py` + models `Employee`/`PayrollEntry`; hisob: gross (proporsional) → **НДФЛ 12%**, ИНПС 0%, **ЕСП 12%**, net, qarz
-- Frontend `pages/Payroll.tsx` (2 tab: Расчёт зарплаты + Сотрудники), nav "Персонал" guruhi, route qo'shildi
-- Ruxsat: `payroll` moduli (Бухгалтер roliga qo'shilgan)
-
-## ✅ ЭТАП 2 qoldig'i — Soliqlar + Zayom (TAYYOR)
-- **Налоги**: create/edit/delete, `debt_end = debt_start + accrued − paid` avto (`Taxes.tsx`, misc.py)
-- **Займы**: create/edit/delete (`Loans.tsx`, misc.py)
+Bo'linmalar ro'yxati (Махстон, Турк, Жби, Офис, Сement, Помпа, Сементовоз) —
+`Справочники` → **«Подразделения»**: qo'shish, nomini o'zgartirish (barcha hujjatlarda
+avtomatik yangilanadi) va o'chirish (ishlatilayotgani himoyalangan).
 
 ---
 
-## ✅ ЭТАП 7 — Услуги + Kunlik qoldiqlar (TAYYOR)
-- **Услуги** (Полученные/Оказанные): `routers/services.py`, `pages/Services.tsx`, nav "Услуги" — НДС ajratish bilan
-- **Kunlik qoldiqlar**: `/reports/daily-balance` + Reports'da "Остатки по дням" tab
-- Ruxsat: `services` moduli
+## Asosiy me'moriy qarorlar
 
-## 🔎 EXCEL BILAN VALIDATSIYA (1:1)
-Excel'ning haqiqiy avgust raqamlari bilan tekshirildi:
-- **ОФР formulasi 1:1 to'g'ri**: Валовая = Выручка − Себестоимость (Excel 2,502,535,956.11), Чистая = Валовая − Расходы периода (Excel 2,261,539,096.11), Расходы периода = 941+942+943 (Excel стр.040 = 240,996,860)
-- **BUG TUZATILDI**: `_period` filtri `Transaction.doc_date`ga bog'langani uchun Sale so'rovida dekарт ko'paytma berib, выручкани ×N qilardi → endi `Sale.doc_date` bilan (reports.py `_period(..., col)`)
-- **Налог на прибыль = 0** qilindi (Excel'da 0, auto-15% olib tashlandi; endi «Налоги» modulidan «прибыль» olinadi)
-- Moving-avg tannarx, COGS, НДС — Excel metodikasiga mos
+**Ochilish qoldiqlari (входящее сальдо).** Har bir obyektda hisob boshlanish sanasidagi
+qoldiq saqlanadi: `Organization.opening_uzs/usd`, `Material.opening_qty/cost`,
+`Product.opening_qty/cost`, `BankAccount`/`CashRegister.opening_uzs/usd`, `Loan.opening_uzs`.
+Joriy qoldiq = ochilish + hujjatlar bo'yicha aylanma.
 
-**Hali 1:1 EMAS (format/detal):** Баланс — to'liq Форма №1 (≈40 qator kodi, СЕЙФ/холдинг/авансы alohida Дт-Кт'dan) o'rniga soddalashtirilgan; ОФР bo'linmalar kesimida emas (umumiy). Bular «ledger type» + per-division talab qiladi.
+**Дт-Кт — to'liq derived (`app/ledger.py`).** Kontragent saldosi endi inkremental
+yig'ilmaydi (bu tahrirlash/o'chirishda xatoga olib kelardi), balki har safar birlamchi
+hujjatlardan qayta hisoblanadi: pul operatsiyalari + ТМЦ prixodi + ГП sotuvi + xizmatlar.
+**Tuzatilgan bug**: xizmatlar (`/services`) umuman kontragent balansiga tushmasdi.
 
-## 🔜 QOLGAN (ixtiyoriy / kichik)
-- **Курсовая разница** (valyuta qayta baholash) — kurs o'zgarganda Дт-Кт/pul/zayom bo'yicha farq. Murakkab; bu Excel'da ko'pincha 0 (kurs=1). Keyinroq.
-- ОФР **bo'linmalar bo'yicha** (Махстон/Турк/Жби filtri)
-- Дт-Кт alohida turlari (СЕЙФ/услуги/З.п/РБП) — hozir bitta umumiy vedomost
-- Bank hisoblari (счета) bo'yicha ajratish, ochilish qoldiqlari
+**Ombor — drobilkalar kesimida, to'liq replay.** Excel'dagidek qoldiq
+`material × bo'linma` bo'yicha yuritiladi (`material_stocks`, `product_stocks`):
+Махстон'da ШАГАЛ o'z narxida, Турк'da o'z narxida. Rasxod va COGS **o'z obyektining**
+o'rtacha narxida hisoblanadi. Bo'sh obyektdan yozib bo'lmaydi — aks holda tannarx
+jimgina 0 chiqardi. Har `create/update/delete`da to'liq qayta hisob.
 
-### Eski eslatma (bajarilgan)
-- **ОСТАТОК UZS/USD**: har kunlik pul qoldig'i (bank hisoblari + kassa) — БАНК/КАССА registridan hisoblab kunlik jadval.
-- **Курсовая разница**: valyuta qayta baholash (Дт-Кт, pul, zayomlar bo'yicha) — kurs o'zgarganda.
-- **Полученные/Оказанные УСЛУГИ**: xizmatlar registri (ИНН, xizmat turi, НДС, bo'linma, summa).
+**Kodlar tasnifi — spravochnikda.** Har xarajat kodida `pnl_group` (ОФР qaysi qatoriga
+tushishi), har CF kodida `activity` (ДДС qaysi bo'limi). Ilgari bu prefiks bo'yicha
+qattiq yozilgan edi; endi `Справочники` sahifasidan o'zgartiriladi.
 
-### Qo'shimcha (Excel'da bor, ixtiyoriy)
-- ОФР **bo'linmalar bo'yicha** (Махстон/Турк/Жби alohida) — reports/pnl'ga `division` filtri
-- Bank hisoblari (счета) bo'yicha ajratish; ochilish qoldiqlari (opening balances)
-- Дт-Кт alohida turlari: СЕЙФ, прочие, услуги, З.п, РБП, Офис (hozir hammasi bitta counterparties hisobotida)
+**ОФР — to'liq Форма №2.** 010→020→030→040→090→100→120/130→220→230→240→250/260→270.
+Курсовая разница 120/130 qatorlariga tushadi va sof foydani o'zgartiradi.
+`Прочие доходы (090)` — `pnl_group=income` kodli kirim operatsiyalari.
+
+**Курсовая разница — Excel metodikasi 1:1.** Hisob dollarda:
+- *задолженность* — har kontragent bo'yicha alohida: `сальдо сум / курс на конец − валютная база`.
+  Foyda va zarar **qatorlar bo'yicha alohida** yig'iladi (Excel'dagi `R`/`S` formulalari),
+  bir kontragentdagi foyda boshqasidagi zararni yashirmaydi.
+- *деньги* — kunlik qayta baholash (`ОСТАТОК UZS` B/D/F ustunlari):
+  `qoldiq × (1/kurs_bugun − 1/kurs_kecha)`.
+- *займы* — valyuta bazasi har harakat sanasidagi kurs bo'yicha.
+  (Excel'da «Полученные займы» qatori qattiq 0 — bizda ishlaydi.)
+
+Kurs jadvalida bo'shliq bo'lsa hisobot ogohlantiradi: davr boshidan oldingi kun uchun
+kurs kiritilmagan bo'lsa yoki davr ichida kunlar tushib qolgan bo'lsa.
 
 ---
+
+## Testlar
+
+```bash
+# scratchpad/ ichida, shu tartibda
+py t_a.py       # ochilish qoldiqlari, ledger, счета/кассы — 12/12
+py t_b.py       # hisobotlar Excel formatida — 8/8
+py t_cd.py      # zarplata, eksport, import — 10/10
+py t_fx.py      # курсовая разница o'zgaruvchan kurs bilan — 7/7
+py t_forms.py   # ОФР Ф№2, ДДС bo'limlari, Баланс Ф№1 — 9/9
+py t_wh.py      # ombor drobilkalar kesimida — 10/10
+py t_dash.py    # dashboard UZS/USD + davr filtri — 6/6
+py t_full.py    # sqvoz stsenariy: 0 dan hisobotlargacha — 20/20
+py t_salary_ledger.py  # zarplata → «Дт Кт З.п» hisob-kitobi — 4/4
+py t_cogs.py    # 020 = «ГП оборот» P = N×L (davr o'rtachasi) — 5/5
+py t_smoke.py   # frontend ishlatadigan barcha endpointlar — 63/63
+py cleanup.py   # test ma'lumotlarini bazadan tozalash
+```
+Har to'plam o'zidan keyin tozalaydi va o'z pul qoldiqlarini `setup_cash()` bilan
+o'zi o'rnatadi — shuning uchun istalgan tartibda qayta chopish mumkin.
+
+**020 СЕБЕСТОИМОСТЬ РЕАЛИЗАЦИИ (kitobdagi formula).** `ОФР!D19 = SUM(D20:D22)`,
+har bo'linma esa `='ГП оборот'!P5`. «ГП оборот» varag'ida (8–12 qatorlar):
+
+| Ustun | Formula | Ma'nosi |
+|---|---|---|
+| K | `= E + H` | boshlang'ich qoldiq + chiqarilgan, dona |
+| M | `= G + J` | boshlang'ich qoldiq + chiqarilgan, so'm |
+| **L** | `= M / K` | **davr o'rtacha tannarxi** |
+| O, P | `= L`, `= N × O` | sotilgan — **shu 020 qatori** |
+| Q, R, S | `= K − N`, `= L`, `= Q × R` | oxirgi qoldiq |
+
+Ya'ni oyning **hamma** sotuvi **bitta** o'rtacha bilan baholanadi (sotuv sanasidagi
+skolzyashiy o'rtacha bilan emas): sotuv narxi (O) va qoldiq narxi (R) — bir xil L
+katakchasi. Bizda ham shunday: `/api/reports/gp-turnover` shu formulani hisoblaydi,
+ОФР 020 esa undan olinadi. Farq sotuv chiqarishdan **oldin** bo'lganda ko'rinadi —
+`t_cogs.py` aynan shuni tekshiradi.
+
+**ЗАРПЛАТА ↔ БАНК/КАССА (kitobdagi mantiq).** Har obyektning zarplata «kontragenti»
+bor — `Ойлик(МАХСТОН)` / `Ойлик(ТУРК)` / `Ойлик(ЖБИ)` (`ledger='salary'`, `inn` =
+obyekt nomi). «Зарплата» varag'idagi **к выдаче** oy oxirgi kuni **КРЕДИТ**ga tushadi
+(korxonaning ishchilarga qarzi), КАССА/БАНК'dagi to'lov esa shu kontragent bilan
+belgilansa **ДЕБЕТ**ga tushadi. Farqi = qolgan qarz. Kontragentsiz kassa chiqimi
+pulni kamaytiradi, lekin «Дт Кт З.п»da ko'rinmaydi — shuning uchun operatsiya
+oynasida ogohlantirish va «Подставить» tugmasi qo'shildi.
+
+Excel bilan tasdiqlangan raqamlar:
+- Остаток на 01.08.2025 = **68 550 483,11** (bank 11 180 783,11 + kassa 57 369 700)
+- Займы Абдулборий на конец = **101 773 000**
+- ОФР formulalari: Валовая = Выручка − Себестоимость; Чистая = Валовая − Расходы периода
+- Баланс Ф№1: aktiv = passiv (check = 0)
+
+---
+
+## 🔎 Excel'da BO'SH bo'lib chiqqan ustunlar (qasddan qilinmadi)
+
+Auditda ma'lum bo'ldiki, «yetishmayotgan» deb hisoblangan bir necha maydon
+kitobning o'zida hech qachon to'ldirilmagan — ularni ko'chirishdan ma'no yo'q:
+
+| Excel maydoni | Holati |
+|---|---|
+| Зарплата — бух. va фин. ikki blok | varaqda **1 ta ФИО**, ikkala blok ham bo'sh |
+| КАССА — «Код Фин оборот» | 845 qatordan **0 tasida** to'ldirilgan |
+| Расход сырья — «Участок расхода», «Продукты» | **butunlay bo'sh** |
+| БАНК — «Готовая продукция», «Код ГП» | 129 qator, hammasi **probel** |
+| Полученные УСЛУГИ — «Скидка Бетон» | jami blok, qiymati **0** (chegirma `94115` kodi orqali yuritiladi) |
+
+Зарплата amalda obyektlar bo'yicha jami summa bilan yuritiladi
+(«Зарплата  » varag'i: Махстон 163 000 000 · Турк 155 080 000 · Жби 177 880 000) —
+bu bizda **«Свод по объектам»** tabida bor.
+
+## 🔜 Qolgan
+
+**Основные средства moduli.** Balans qatorlari 010–022, 090 va kapital 410–430 hozir
+«Настройки»dan qo'lda kiritiladi. Bu kompaniyada ОС = 0, shuning uchun forma to'liq
+ishlaydi; amortizatsiya hisobi kerak bo'lsa alohida modul qurish mumkin.
+
+**Excel import** hozir 3 tur uchun (операции / приход / продажа) — услуги va зарплата
+qo'shilishi mumkin.
+
+**Налоги varag'ining o'ng yarmi** — soliq organlari bo'yicha ИНН'li Дт-Кт vedomosti.
+Kitobda ham deyarli bo'sh.
 
 ## Texnik eslatmalar
-- Base valyuta: har operatsiya `amount_uzs` (so'm) va `amount_usd` saqlaydi. Inventar/ишлаб chiqarish/sotuv — **so'mда** (avg_cost UZS). Hisobotlar: ОФР/Баланс so'mда, Cash Flow/Дт-Кт USD.
-- Ombor/tannarx: to'liq replay (recompute_material/recompute_product) — har create/delete'da qayta hisob.
-- bcrypt `__about__` warning — zararsiz (trapped).
-- Modellar: `backend/app/models.py` · Ruxsatlar: `backend/app/permissions.py` · Seed: `backend/app/seed.py`
-
-## Keyingi qadam (davom etilganда)
-1. Payroll testini tasdiqlash → `pages/Payroll.tsx` + nav + route → rebuild frontend → test
-2. ЭТАП 2 qoldig'i (Налоги/Займы batafsil)
-3. ЭТАП 7 (kunlik qoldiqlar / курсовая / услуги)
-4. Hammasi tugagach — foydalanuvchi to'liq test qiladi
+- Base valyuta: har operatsiya `amount_uzs` va `amount_usd` saqlaydi.
+  Inventar/ishlab chiqarish/sotuv — so'mda; hisobotlarda UZS↔USD almashtirgich bor.
+- Ruxsatlar: `app/permissions.py` · Modellar: `app/models.py` · Seed: `app/seed.py`
+- Excel import/eksport: `app/routers/imports.py`, `app/routers/exports.py` (openpyxl)
+- bcrypt `__about__` warning — zararsiz.

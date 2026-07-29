@@ -30,6 +30,9 @@ services:
       SUPERADMIN_EMAIL: admin@profitdivider.uz
       SUPERADMIN_PASSWORD: Admin12345!
       SUPERADMIN_NAME: Super Admin
+    # исходники монтируются, чтобы правки применялись по `restart` без пересборки
+    volumes:
+      - ./backend/app:/app/app
     ports:
       - "8000:8000"
 

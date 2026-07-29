@@ -11,44 +11,62 @@ import {
   YAxis,
 } from "recharts";
 import { Card, KpiCard, SectionTitle, Spinner } from "../components/ui";
-import { fmtUSD, fmtDateTime, fmtNum } from "../lib/format";
+import { fmtDateTime, fmtMoney, makeMoney } from "../lib/format";
+import { PeriodPicker, usePeriod, withPeriod } from "../lib/period";
 import { useApi } from "../lib/useApi";
 import { useRealtime } from "../store/realtime";
 
+type Pair = { uzs: number; usd: number };
 interface Dash {
-  kpi: { income_usd: number; expense_usd: number; profit_usd: number; receivable_usd: number; payable_usd: number; margin: number };
+  rate: number;
+  kpi: {
+    income_uzs: number; income_usd: number;
+    expense_uzs: number; expense_usd: number;
+    profit_uzs: number; profit_usd: number;
+    receivable_uzs: number; receivable_usd: number;
+    payable_uzs: number; payable_usd: number;
+    margin: number;
+  };
   counts: { organizations: number; products: number; materials: number; transactions: number };
-  cashflow: { month: string; income: number; expense: number }[];
-  expense_breakdown: { name: string; value: number }[];
+  cashflow: { month: string; income_uzs: number; expense_uzs: number; income_usd: number; expense_usd: number }[];
+  expense_breakdown: { name: string; uzs: number; usd: number }[];
   production: {
-    raw_receipt: number; spare_receipt: number; raw_issue: number;
-    production_value: number; production_qty: number;
-    raw_stock: number; spare_stock: number; gp_stock: number;
+    raw_receipt: Pair; spare_receipt: Pair; raw_issue: Pair;
+    production_value: Pair; production_qty: number;
+    raw_stock: Pair; spare_stock: Pair; gp_stock: Pair; total_stock: Pair;
   };
 }
 
 const PIE = ["#5b8cff", "#2dd4a7", "#a78bfa", "#fbbf24", "#fb7185", "#38bdf8"];
 
-function chartTooltip({ active, payload, label }: any) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="glass px-3 py-2 text-xs">
-      {label && <div className="text-slate-400 mb-1">{label}</div>}
-      {payload.map((p: any) => (
-        <div key={p.name} className="flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full" style={{ background: p.color || p.fill }} />
-          <span className="text-slate-300">{p.name}:</span>
-          <span className="text-white font-semibold">{fmtUSD(p.value)}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 export default function Dashboard() {
-  const { data, loading } = useApi<Dash>("/dashboard");
+  const [cur, setCur] = useState<"uzs" | "usd">("uzs");
+  const { qs, label } = usePeriod();
+  const url = withPeriod("/dashboard", qs);
+  const { data, loading } = useApi<Dash>(url, [url]);
   const { lastEvent } = useRealtime();
   const [feed, setFeed] = useState<{ t: string; text: string; by: string; tone: string }[]>([]);
+
+  // одна функция форматирования на весь экран — переключатель меняет только её
+  // (данные уже приходят в обеих валютах, поэтому пересчёт не нужен)
+  const money = makeMoney(cur);
+  const pick = (p: Pair) => (cur === "usd" ? p.usd : p.uzs);
+
+  const tooltip = ({ active, payload, label: l }: any) => {
+    if (!active || !payload?.length) return null;
+    return (
+      <div className="glass px-3 py-2 text-xs">
+        {l && <div className="text-slate-400 mb-1">{l}</div>}
+        {payload.map((p: any) => (
+          <div key={p.name} className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full" style={{ background: p.color || p.fill }} />
+            <span className="text-slate-300">{p.name}:</span>
+            <span className="text-white font-semibold">{money(p.value)}</span>
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   useEffect(() => {
     if (!lastEvent) return;
@@ -62,30 +80,54 @@ export default function Dashboard() {
 
   if (loading || !data) return <Spinner />;
   const k = data.kpi;
+  const P = data.production;
+  const kpi = (base: string) => (cur === "usd" ? (k as any)[`${base}_usd`] : (k as any)[`${base}_uzs`]);
 
   return (
     <div>
-      <SectionTitle title="Финансовый дашборд" sub="Обзор движения средств за август 2025 · данные в USD" />
+      <SectionTitle
+        title="Финансовый дашборд"
+        sub={`Обзор движения средств ${label} · ${cur === "usd" ? "в долларах" : "в сумах"}`}
+        right={
+          <div className="flex flex-wrap items-center gap-2">
+            <PeriodPicker />
+            <div className="flex gap-1 rounded-xl bg-white/5 border border-line p-1">
+              {([["uzs", "сум"], ["usd", "$"]] as const).map(([v, l]) => (
+                <button key={v} onClick={() => setCur(v)} className={`px-3 py-1.5 rounded-lg text-sm font-semibold ${cur === v ? "bg-accent text-white" : "text-slate-400 hover:text-white"}`}>{l}</button>
+              ))}
+            </div>
+          </div>
+        }
+      />
+      {cur === "usd" && (
+        <div className="mb-4 text-xs text-slate-500">
+          Денежные операции — по курсу сделки; складские остатки пересчитаны по курсу
+          на конец периода: 1$ = {fmtMoney(data.rate)} сум
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <KpiCard label="Поступления" value={fmtUSD(k.income_usd)} tone="emerald" delta="Приход денежных средств" icon={<Arrow up />} />
-        <KpiCard label="Расходы" value={fmtUSD(k.expense_usd)} tone="rose" delta="Расход денежных средств" icon={<Arrow />} />
-        <KpiCard label="Чистая прибыль" value={fmtUSD(k.profit_usd)} tone="accent" delta={`Маржа ${k.margin}%`} icon={<Dollar />} />
-        <KpiCard label="Дебиторка / Кредиторка" value={fmtUSD(k.receivable_usd)} tone="violet" delta={`Кредиторка ${fmtUSD(Math.abs(k.payable_usd))}`} icon={<Scale />} />
+        <KpiCard label="Поступления" value={money(kpi("income"))} tone="emerald" delta="Приход денежных средств" icon={<Arrow up />} />
+        <KpiCard label="Расходы" value={money(kpi("expense"))} tone="rose" delta="Расход денежных средств" icon={<Arrow />} />
+        <KpiCard label="Чистая прибыль" value={money(kpi("profit"))} tone="accent" delta={`Маржа ${k.margin}%`} icon={<Dollar />} />
+        <KpiCard label="Дебиторка" value={money(kpi("receivable"))} tone="violet" delta={`Кредиторка ${money(Math.abs(kpi("payable")))}`} icon={<Scale />} />
       </div>
 
       {/* Производство и склад */}
       <Card className="mt-4">
-        <h3 className="font-semibold text-white mb-4">Производство и склад <span className="text-xs font-normal text-slate-500">· сум</span></h3>
+        <h3 className="font-semibold text-white mb-4">
+          Производство и склад
+          <span className="text-xs font-normal text-slate-500"> · {cur === "usd" ? "USD" : "сум"}</span>
+        </h3>
         <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-4 gap-3">
-          <WCard label="Приход сырья" value={data.production.raw_receipt} tone="text-emerald-300" />
-          <WCard label="Приход запчастей" value={data.production.spare_receipt} tone="text-emerald-300" />
-          <WCard label="Расход сырья" value={data.production.raw_issue} tone="text-rose-300" />
-          <WCard label="Производство ГП" value={data.production.production_value} tone="text-accent-soft" sub={`${data.production.production_qty.toLocaleString("ru-RU")} ед.`} />
-          <WCard label="Остаток сырья" value={data.production.raw_stock} tone="text-white" />
-          <WCard label="Остаток запчастей" value={data.production.spare_stock} tone="text-white" />
-          <WCard label="Остаток ГП" value={data.production.gp_stock} tone="text-white" />
-          <WCard label="Всего на складе" value={data.production.raw_stock + data.production.spare_stock + data.production.gp_stock} tone="text-violet2" />
+          <WCard label="Приход сырья" value={money(pick(P.raw_receipt))} tone="text-emerald-300" />
+          <WCard label="Приход запчастей" value={money(pick(P.spare_receipt))} tone="text-emerald-300" />
+          <WCard label="Расход сырья" value={money(pick(P.raw_issue))} tone="text-rose-300" />
+          <WCard label="Производство ГП" value={money(pick(P.production_value))} tone="text-accent-soft" sub={`${P.production_qty.toLocaleString("ru-RU")} ед.`} />
+          <WCard label="Остаток сырья" value={money(pick(P.raw_stock))} tone="text-white" />
+          <WCard label="Остаток запчастей" value={money(pick(P.spare_stock))} tone="text-white" />
+          <WCard label="Остаток ГП" value={money(pick(P.gp_stock))} tone="text-white" />
+          <WCard label="Всего на складе" value={money(pick(P.total_stock))} tone="text-violet2" />
         </div>
       </Card>
 
@@ -114,25 +156,30 @@ export default function Dashboard() {
                 </linearGradient>
               </defs>
               <XAxis dataKey="month" stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} />
-              <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
-              <Tooltip content={chartTooltip} />
-              <Area type="monotone" dataKey="income" name="Приход" stroke="#2dd4a7" strokeWidth={2} fill="url(#gInc)" />
-              <Area type="monotone" dataKey="expense" name="Расход" stroke="#fb7185" strokeWidth={2} fill="url(#gExp)" />
+              <YAxis
+                stroke="#64748b" fontSize={11} tickLine={false} axisLine={false}
+                tickFormatter={(v) =>
+                  cur === "usd" ? `$${(v / 1000).toFixed(0)}k` : `${(v / 1_000_000).toFixed(0)} млн`
+                }
+              />
+              <Tooltip content={tooltip} />
+              <Area type="monotone" dataKey={`income_${cur}`} name="Приход" stroke="#2dd4a7" strokeWidth={2} fill="url(#gInc)" />
+              <Area type="monotone" dataKey={`expense_${cur}`} name="Расход" stroke="#fb7185" strokeWidth={2} fill="url(#gExp)" />
             </AreaChart>
           </ResponsiveContainer>
         </Card>
 
         <Card>
           <h3 className="font-semibold text-white mb-1">Структура расходов</h3>
-          <p className="text-xs text-slate-500 mb-2">По статьям, USD</p>
+          <p className="text-xs text-slate-500 mb-2">По статьям, {cur === "usd" ? "USD" : "сум"}</p>
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
-              <Pie data={data.expense_breakdown} dataKey="value" nameKey="name" innerRadius={52} outerRadius={80} paddingAngle={3} stroke="none">
+              <Pie data={data.expense_breakdown} dataKey={cur} nameKey="name" innerRadius={52} outerRadius={80} paddingAngle={3} stroke="none">
                 {data.expense_breakdown.map((_, i) => (
                   <Cell key={i} fill={PIE[i % PIE.length]} />
                 ))}
               </Pie>
-              <Tooltip content={chartTooltip} />
+              <Tooltip content={tooltip} />
             </PieChart>
           </ResponsiveContainer>
           <div className="space-y-1.5 mt-2">
@@ -142,9 +189,12 @@ export default function Dashboard() {
                   <span className="h-2 w-2 rounded-full" style={{ background: PIE[i % PIE.length] }} />
                   <span className="truncate">{e.name}</span>
                 </span>
-                <span className="text-slate-200 font-medium">{fmtUSD(e.value)}</span>
+                <span className="text-slate-200 font-medium">{money(cur === "usd" ? e.usd : e.uzs)}</span>
               </div>
             ))}
+            {!data.expense_breakdown.length && (
+              <p className="text-xs text-slate-500 text-center py-4">За период расходов нет</p>
+            )}
           </div>
         </Card>
       </div>
@@ -185,11 +235,11 @@ export default function Dashboard() {
   );
 }
 
-function WCard({ label, value, tone, sub }: { label: string; value: number; tone: string; sub?: string }) {
+function WCard({ label, value, tone, sub }: { label: string; value: string; tone: string; sub?: string }) {
   return (
     <div className="rounded-xl bg-white/5 border border-line p-3.5">
       <div className="text-[11px] text-slate-500">{label}</div>
-      <div className={`text-lg font-bold mt-1 ${tone}`}>{fmtNum(value)}</div>
+      <div className={`text-lg font-bold mt-1 tabular-nums ${tone}`}>{value}</div>
       {sub && <div className="text-[11px] text-slate-500 mt-0.5">{sub}</div>}
     </div>
   );

@@ -6,10 +6,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
 from .database import AsyncSessionLocal, Base, engine
+from .migrate import auto_migrate
 from .routers import (
     auth,
     dashboard,
     directories,
+    exports,
+    imports,
     inventory,
     materials,
     misc,
@@ -33,7 +36,10 @@ async def lifespan(app: FastAPI):
     for attempt in range(20):
         try:
             async with engine.begin() as conn:
+                added = await auto_migrate(conn)
                 await conn.run_sync(Base.metadata.create_all)
+            if added:
+                print(f"[startup] migrated {len(added)} column(s): {', '.join(added)}")
             break
         except Exception as exc:  # noqa: BLE001
             if attempt == 19:
@@ -74,6 +80,8 @@ for r in (
     reports.router,
     misc.router,
     dashboard.router,
+    exports.router,
+    imports.router,
 ):
     app.include_router(r)
 

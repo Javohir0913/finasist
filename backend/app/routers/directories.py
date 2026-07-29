@@ -1,15 +1,105 @@
-"""Справочники: коды расходов, коды Cash Flow, подразделения."""
+"""Справочники: коды расходов, коды Cash Flow, подразделения,
+банковские счета и кассы (листы «ОСТАТОК UZS/USD», «БАНК», «КАССА»)."""
+import json
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
 from ..events import record
-from ..models import CashflowCode, Division, ExpenseCode, User
-from ..schemas import CodeBase, CodeOut, CodeUpdate, DivisionBase, DivisionOut
-from ..security import require
+from ..ledger import LEDGERS
+from ..models import (
+    BankAccount,
+    CashRegister,
+    CashflowCode,
+    Division,
+    Employee,
+    ExpenseCode,
+    MaterialIssue,
+    MaterialReceipt,
+    Production,
+    Sale,
+    Service,
+    Transaction,
+    User,
+)
+from ..schemas import (
+    BankAccountBase,
+    BankAccountOut,
+    BankAccountUpdate,
+    CashRegisterBase,
+    CashRegisterOut,
+    CashRegisterUpdate,
+    CodeBase,
+    CodeOut,
+    CodeUpdate,
+    DivisionBase,
+    DivisionOut,
+)
+from ..security import get_current_user, require
 
 router = APIRouter(prefix="/api", tags=["directories"])
+
+
+_REF = json.loads((Path(__file__).parent.parent / "seed_data.json").read_text(encoding="utf-8"))
+
+
+@router.get("/ledger-types")
+async def ledger_types(_: User = Depends(require("articles:view"))):
+    """Виды ведомостей Дт-Кт (по листам Excel)."""
+    return [{"key": k, "label": v} for k, v in LEDGERS]
+
+
+# строки ОФР, куда может попасть статья расходов
+PNL_GROUPS = [
+    ("prod", "Производственные (в себестоимость)"),
+    ("sell", "Расходы по реализации (050)"),
+    ("admin", "Административные расходы (060)"),
+    ("other", "Прочие операционные расходы (070)"),
+    ("financial", "Расходы по финансовой деятельности (130)"),
+    ("extraordinary", "Чрезвычайные убытки (230)"),
+    ("profit_tax", "Прочие налоги и сборы от прибыли (260)"),
+    ("income", "Прочие доходы (090)"),
+    ("subtotal", "Итоговая строка группы — в расчётах не участвует"),
+    ("asset", "Покупка ТМЗ — в себестоимость идёт через склад"),
+]
+CF_ACTIVITIES = [
+    ("operating", "Операционная деятельность"),
+    ("investing", "Инвестиционная деятельность"),
+    ("financing", "Финансовая деятельность"),
+]
+PNL_KEYS = {k for k, _ in PNL_GROUPS}
+CF_KEYS = {k for k, _ in CF_ACTIVITIES}
+
+
+@router.get("/lookups")
+async def lookups(_: User = Depends(get_current_user)):
+    """Списки-подсказки из книги Excel (лист «INFO зарплата» и «INFO»)."""
+    return {
+        "payCategories": _REF.get("payCategories", []),
+        "payGroups": _REF.get("payGroups", []),
+        "payStatuses": _REF.get("payStatuses", []),
+        "payStates": _REF.get("payStates", []),
+        "paymentTypes": _REF.get("paymentTypes", []),
+        "sources": _REF.get("sources", []),
+        "vatTypes": _REF.get("vatTypes", []),
+        "departments": ["АУП", "ПП", "ТП", "ВП", "ОП", "С"],
+        "pnlGroups": [{"key": k, "label": v} for k, v in PNL_GROUPS],
+        "cfActivities": [{"key": k, "label": v} for k, v in CF_ACTIVITIES],
+    }
+
+
+def _code_fields(body, model, allowed: set[str], field: str, valid: set[str]) -> dict:
+    """Оставить только поля, которые есть у модели, и проверить классификацию."""
+    data = {
+        k: v for k, v in body.model_dump(exclude_unset=True).items()
+        if k in {"code", "name"} | allowed
+    }
+    if field in data and data[field] not in valid:
+        raise HTTPException(400, detail=f"Недопустимое значение «{data[field]}»")
+    return data
 
 
 # ---------- Expense codes ----------
@@ -29,7 +119,7 @@ async def create_expense_code(
 ):
     if await db.scalar(select(ExpenseCode).where(ExpenseCode.code == body.code)):
         raise HTTPException(400, detail="Такой код уже существует")
-    row = ExpenseCode(**body.model_dump())
+    row = ExpenseCode(**_code_fields(body, ExpenseCode, {"pnl_group"}, "pnl_group", PNL_KEYS))
     db.add(row)
     await db.commit()
     await db.refresh(row)
@@ -47,7 +137,7 @@ async def update_expense_code(
     row = await db.get(ExpenseCode, cid)
     if not row:
         raise HTTPException(404, detail="Код не найден")
-    for k, v in body.model_dump(exclude_unset=True).items():
+    for k, v in _code_fields(body, ExpenseCode, {"pnl_group"}, "pnl_group", PNL_KEYS).items():
         setattr(row, k, v)
     await db.commit()
     await db.refresh(row)
@@ -87,7 +177,7 @@ async def create_cf_code(
 ):
     if await db.scalar(select(CashflowCode).where(CashflowCode.code == body.code)):
         raise HTTPException(400, detail="Такой код уже существует")
-    row = CashflowCode(**body.model_dump())
+    row = CashflowCode(**_code_fields(body, CashflowCode, {"activity"}, "activity", CF_KEYS))
     db.add(row)
     await db.commit()
     await db.refresh(row)
@@ -105,7 +195,7 @@ async def update_cf_code(
     row = await db.get(CashflowCode, cid)
     if not row:
         raise HTTPException(404, detail="Код не найден")
-    for k, v in body.model_dump(exclude_unset=True).items():
+    for k, v in _code_fields(body, CashflowCode, {"activity"}, "activity", CF_KEYS).items():
         setattr(row, k, v)
     await db.commit()
     await db.refresh(row)
@@ -153,6 +243,58 @@ async def create_division(
     return row
 
 
+# во всех документах подразделение хранится строкой — при переименовании
+# и удалении надо пройтись по каждой такой колонке
+DIVISION_REFS = [
+    (Transaction, Transaction.division, "операции"),
+    (MaterialReceipt, MaterialReceipt.division, "приход ТМЦ"),
+    (MaterialIssue, MaterialIssue.division, "расход ТМЦ"),
+    (Production, Production.division, "производство"),
+    (Sale, Sale.division, "продажи"),
+    (Service, Service.division, "услуги"),
+    (Employee, Employee.division, "сотрудники"),
+    (CashRegister, CashRegister.division, "кассы"),
+]
+
+
+async def _division_usage(db: AsyncSession, name: str) -> list[str]:
+    used = []
+    for model, col, label in DIVISION_REFS:
+        n = await db.scalar(select(func.count(model.id)).where(col == name))
+        if n:
+            used.append(f"{label}: {n}")
+    return used
+
+
+@router.put("/divisions/{did}", response_model=DivisionOut)
+async def update_division(
+    did: int,
+    body: DivisionBase,
+    current: User = Depends(require("articles:edit")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Переименование с обновлением ссылок во всех документах."""
+    row = await db.get(Division, did)
+    if not row:
+        raise HTTPException(404, detail="Подразделение не найдено")
+    new = (body.name or "").strip()
+    if not new:
+        raise HTTPException(400, detail="Название не может быть пустым")
+    if new == row.name:
+        return row
+    dup = await db.scalar(select(Division).where(Division.name == new, Division.id != did))
+    if dup:
+        raise HTTPException(400, detail=f"Подразделение «{new}» уже существует")
+    old = row.name
+    row.name = new
+    for model, col, _ in DIVISION_REFS:
+        await db.execute(update(model).where(col == old).values(division=new))
+    await db.commit()
+    await db.refresh(row)
+    await record(db, current, "edit", "division", f"{old} -> {new}")
+    return row
+
+
 @router.delete("/divisions/{did}", status_code=204)
 async def delete_division(
     did: int,
@@ -162,7 +304,136 @@ async def delete_division(
     row = await db.get(Division, did)
     if not row:
         raise HTTPException(404, detail="Подразделение не найдено")
+    used = await _division_usage(db, row.name)
+    if used:
+        raise HTTPException(
+            400,
+            detail="Нельзя удалить — подразделение используется (" + ", ".join(used)
+            + "). Переименуйте его или сначала перепривяжите документы.",
+        )
     name = row.name
     await db.delete(row)
     await db.commit()
     await record(db, current, "delete", "division", name)
+
+
+# ---------- Банковские счета ----------
+@router.get("/bank-accounts", response_model=list[BankAccountOut])
+async def list_bank_accounts(
+    _: User = Depends(require("articles:view")), db: AsyncSession = Depends(get_db)
+):
+    res = await db.execute(select(BankAccount).order_by(BankAccount.id))
+    return res.scalars().all()
+
+
+@router.post("/bank-accounts", response_model=BankAccountOut, status_code=201)
+async def create_bank_account(
+    body: BankAccountBase,
+    current: User = Depends(require("articles:create")),
+    db: AsyncSession = Depends(get_db),
+):
+    row = BankAccount(**body.model_dump())
+    db.add(row)
+    await db.commit()
+    await db.refresh(row)
+    await record(db, current, "create", "bank_account", row.name)
+    return row
+
+
+@router.put("/bank-accounts/{bid}", response_model=BankAccountOut)
+async def update_bank_account(
+    bid: int,
+    body: BankAccountUpdate,
+    current: User = Depends(require("articles:edit")),
+    db: AsyncSession = Depends(get_db),
+):
+    row = await db.get(BankAccount, bid)
+    if not row:
+        raise HTTPException(404, detail="Счёт не найден")
+    for k, v in body.model_dump(exclude_unset=True).items():
+        setattr(row, k, v)
+    await db.commit()
+    await db.refresh(row)
+    await record(db, current, "edit", "bank_account", row.name)
+    return row
+
+
+@router.delete("/bank-accounts/{bid}", status_code=204)
+async def delete_bank_account(
+    bid: int,
+    current: User = Depends(require("articles:delete")),
+    db: AsyncSession = Depends(get_db),
+):
+    row = await db.get(BankAccount, bid)
+    if not row:
+        raise HTTPException(404, detail="Счёт не найден")
+    used = await db.scalar(
+        select(Transaction.id).where(Transaction.bank_account_id == bid).limit(1)
+    )
+    if used:
+        raise HTTPException(400, detail="По счёту есть операции — удаление запрещено")
+    name = row.name
+    await db.delete(row)
+    await db.commit()
+    await record(db, current, "delete", "bank_account", name)
+
+
+# ---------- Кассы ----------
+@router.get("/cash-registers", response_model=list[CashRegisterOut])
+async def list_cash_registers(
+    _: User = Depends(require("articles:view")), db: AsyncSession = Depends(get_db)
+):
+    res = await db.execute(select(CashRegister).order_by(CashRegister.id))
+    return res.scalars().all()
+
+
+@router.post("/cash-registers", response_model=CashRegisterOut, status_code=201)
+async def create_cash_register(
+    body: CashRegisterBase,
+    current: User = Depends(require("articles:create")),
+    db: AsyncSession = Depends(get_db),
+):
+    row = CashRegister(**body.model_dump())
+    db.add(row)
+    await db.commit()
+    await db.refresh(row)
+    await record(db, current, "create", "cash_register", row.name)
+    return row
+
+
+@router.put("/cash-registers/{cid}", response_model=CashRegisterOut)
+async def update_cash_register(
+    cid: int,
+    body: CashRegisterUpdate,
+    current: User = Depends(require("articles:edit")),
+    db: AsyncSession = Depends(get_db),
+):
+    row = await db.get(CashRegister, cid)
+    if not row:
+        raise HTTPException(404, detail="Касса не найдена")
+    for k, v in body.model_dump(exclude_unset=True).items():
+        setattr(row, k, v)
+    await db.commit()
+    await db.refresh(row)
+    await record(db, current, "edit", "cash_register", row.name)
+    return row
+
+
+@router.delete("/cash-registers/{cid}", status_code=204)
+async def delete_cash_register(
+    cid: int,
+    current: User = Depends(require("articles:delete")),
+    db: AsyncSession = Depends(get_db),
+):
+    row = await db.get(CashRegister, cid)
+    if not row:
+        raise HTTPException(404, detail="Касса не найдена")
+    used = await db.scalar(
+        select(Transaction.id).where(Transaction.cash_register_id == cid).limit(1)
+    )
+    if used:
+        raise HTTPException(400, detail="По кассе есть операции — удаление запрещено")
+    name = row.name
+    await db.delete(row)
+    await db.commit()
+    await record(db, current, "delete", "cash_register", name)

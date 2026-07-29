@@ -43,6 +43,12 @@ export function SearchSelect({
     setQ("");
   };
 
+  // список раскрывается внутри прокручиваемой модалки и может оказаться
+  // за нижним краем — подтягиваем его в видимую часть
+  useEffect(() => {
+    if (open) ref.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [open]);
+
   return (
     <div className="relative" ref={ref}>
       <button
@@ -253,14 +259,18 @@ export function Modal({
   return (
     <div className="fixed inset-0 z-50 grid place-items-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className={clsx("relative w-full glass p-6 animate-fade-in", width)}>
-        <div className="flex items-center justify-between mb-5">
+      {/* Высокая форма не должна вылезать за экран: панель ограничена по высоте,
+          шапка закреплена, а содержимое (включая кнопки) прокручивается. */}
+      <div className={clsx("relative w-full glass animate-fade-in flex flex-col modal-panel", width)}>
+        <div className="flex items-center justify-between gap-4 px-6 pt-6 pb-4 shrink-0">
           <h3 className="text-lg font-semibold text-white">{title}</h3>
           <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none">
             ✕
           </button>
         </div>
-        {children}
+        <div className="flex-1 overflow-y-auto overscroll-contain px-6 pb-6">
+          {children}
+        </div>
       </div>
     </div>
   );

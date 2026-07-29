@@ -58,7 +58,7 @@ export default function Exchange() {
         {err && <div className="mb-4 rounded-xl bg-rose-500/12 border border-rose-500/25 text-rose-300 text-sm px-3.5 py-2.5">{err}</div>}
         <div className="grid grid-cols-2 gap-4">
           <Field label="Дата"><input type="date" className="input" value={form.rate_date} onChange={(e) => setForm({ ...form, rate_date: e.target.value })} /></Field>
-          <Field label="Курс, сум"><MoneyInput value={form.rate} onChange={(v) => setForm({ ...form, rate: v })} /></Field>
+          <Field label="Курс, сум"><MoneyInput value={form.rate} onChange={(v) => setForm({ ...form, rate: Number(v || 0) })} /></Field>
         </div>
         <div className="flex justify-end gap-2 mt-6"><button className="btn-ghost" onClick={() => setOpen(false)}>Отмена</button><button className="btn-primary" onClick={save} disabled={saving}>Сохранить</button></div>
       </Modal>

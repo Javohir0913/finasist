@@ -34,3 +34,6 @@ backend/.env
 Thumbs.db
 .idea/
 .vscode/
+
+# временные файлы Excel, пока книга открыта
+~$*

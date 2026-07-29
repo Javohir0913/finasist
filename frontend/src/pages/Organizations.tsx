@@ -1,40 +1,77 @@
 import { useState } from "react";
 import api, { apiError } from "../api/client";
 import { Badge, Card, EmptyState, Field, Modal, MoneyInput, SectionTitle, Spinner } from "../components/ui";
-import { fmtNum } from "../lib/format";
+import { fmtDate, fmtNum } from "../lib/format";
 import { ORG_CATS, catLabel, catTone } from "../lib/cats";
+import { toUsd, toUzs, useOpeningRate } from "../lib/rate";
+import { sum } from "../lib/table";
 import { useApi } from "../lib/useApi";
 import { useAuth } from "../store/auth";
 
 interface Org {
-  id: number; inn: string; name: string; category: string; belongs_to: string;
-  nds_payer: boolean; nds_type: string; phone: string; balance_usd: number; balance_uzs: number;
+  id: number; inn: string; name: string; category: string; ledger: string;
+  expense_code: string; belongs_to: string;
+  nds_payer: boolean; nds_type: string; phone: string;
+  opening_uzs: number; opening_usd: number; balance_usd: number; balance_uzs: number;
+  opening_debit: number; opening_credit: number;
+  balance_debit: number; balance_credit: number;
 }
-const empty = { inn: "", name: "", category: "customer", belongs_to: "Прочие", nds_payer: false, nds_type: "", phone: "", balance_usd: 0, balance_uzs: 0 };
+interface LedgerType { key: string; label: string }
+const empty = {
+  inn: "", name: "", category: "customer", ledger: "customers", expense_code: "",
+  belongs_to: "Прочие", nds_payer: false, nds_type: "", phone: "",
+  open_dt: 0, open_kt: 0, open_dt_usd: 0, open_kt_usd: 0,
+};
 
 export default function Organizations() {
   const { can } = useAuth();
   const [cat, setCat] = useState("");
   const [q, setQ] = useState("");
   const { data, loading, reload } = useApi<Org[]>(`/organizations?${cat ? `category=${cat}&` : ""}${q ? `q=${encodeURIComponent(q)}` : ""}`, [cat, q]);
+  const { data: ledgers } = useApi<LedgerType[]>("/ledger-types");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Org | null>(null);
   const [form, setForm] = useState<any>(empty);
   const [err, setErr] = useState(""); const [saving, setSaving] = useState(false);
+  const [help, setHelp] = useState(false);
+  const ledgerLabel = (k: string) => ledgers?.find((l) => l.key === k)?.label ?? k;
+  const { rate, date: rateDate } = useOpeningRate();
 
   const openNew = () => { setEditing(null); setForm(empty); setErr(""); setOpen(true); };
-  const openEdit = (o: Org) => { setEditing(o); setForm({ ...o }); setErr(""); setOpen(true); };
+  const openEdit = (o: Org) => {
+    setEditing(o);
+    setForm({
+      ...o,
+      open_dt: o.opening_debit, open_kt: o.opening_credit,
+      open_dt_usd: Math.max(o.opening_usd, 0), open_kt_usd: Math.max(-o.opening_usd, 0),
+    });
+    setErr(""); setOpen(true);
+  };
 
   const save = async () => {
     setErr(""); setSaving(true);
-    const body = { ...form, balance_usd: Number(form.balance_usd), balance_uzs: Number(form.balance_uzs) };
+    // Дебет и кредит — две стороны ОДНОГО сальдо, поэтому в базу уходит
+    // разница: дебет со знаком «+», кредит со знаком «−».
+    const body = {
+      ...form,
+      opening_uzs: Number(form.open_dt || 0) - Number(form.open_kt || 0),
+      opening_usd: Number(form.open_dt_usd || 0) - Number(form.open_kt_usd || 0),
+    };
+    ["open_dt", "open_kt", "open_dt_usd", "open_kt_usd",
+     "opening_debit", "opening_credit", "balance_debit", "balance_credit"].forEach((k) => delete body[k]);
+    delete body.balance_usd;   // сальдо считает сервер из документов
+    delete body.balance_uzs;
     try {
       if (editing) await api.put(`/organizations/${editing.id}`, body);
       else await api.post("/organizations", body);
       setOpen(false); reload();
     } catch (e) { setErr(apiError(e)); } finally { setSaving(false); }
   };
-  const remove = async (id: number) => { if (confirm("Удалить организацию?")) { await api.delete(`/organizations/${id}`); reload(); } };
+  const remove = async (id: number) => {
+    if (!confirm("Удалить организацию?")) return;
+    try { await api.delete(`/organizations/${id}`); reload(); }
+    catch (e) { alert(apiError(e)); }
+  };
 
   return (
     <div>
@@ -57,7 +94,12 @@ export default function Organizations() {
             <table className="w-full min-w-[820px]">
               <thead><tr className="bg-white/[0.02]">
                 <th className="th">Наименование</th><th className="th">ИНН</th><th className="th">Категория</th>
-                <th className="th">Цех</th><th className="th">НДС</th><th className="th text-right">Баланс, сум</th><th className="th"></th>
+                <th className="th">Ведомость Дт-Кт</th>
+                <th className="th">НДС</th>
+                <th className="th text-right border-l border-line">Входящее Дт</th>
+                <th className="th text-right">Входящее Кт</th>
+                <th className="th text-right border-l border-line">Сальдо Дт</th>
+                <th className="th text-right">Сальдо Кт</th><th className="th"></th>
               </tr></thead>
               <tbody>
                 {data.map((o) => (
@@ -65,9 +107,12 @@ export default function Organizations() {
                     <td className="td font-medium text-white max-w-[240px] truncate">{o.name}</td>
                     <td className="td text-slate-400">{o.inn || "—"}</td>
                     <td className="td"><Badge tone={catTone(o.category)}>{catLabel(o.category)}</Badge></td>
-                    <td className="td">{o.belongs_to}</td>
+                    <td className="td text-slate-400 text-xs">{ledgerLabel(o.ledger)}</td>
                     <td className="td">{o.nds_payer ? <Badge tone="violet">НДС</Badge> : <span className="text-slate-600">—</span>}</td>
-                    <td className={`td text-right font-semibold ${Number(o.balance_uzs) >= 0 ? "text-emerald-300" : "text-rose-300"}`}>{fmtNum(o.balance_uzs)}</td>
+                    <td className="td text-right text-slate-400 tabular-nums border-l border-line">{o.opening_debit ? fmtNum(o.opening_debit) : "—"}</td>
+                    <td className="td text-right text-slate-400 tabular-nums">{o.opening_credit ? fmtNum(o.opening_credit) : "—"}</td>
+                    <td className="td text-right font-semibold tabular-nums text-emerald-300 border-l border-line">{o.balance_debit ? fmtNum(o.balance_debit) : "—"}</td>
+                    <td className="td text-right font-semibold tabular-nums text-rose-300">{o.balance_credit ? fmtNum(o.balance_credit) : "—"}</td>
                     <td className="td text-right whitespace-nowrap">
                       {can("organizations:edit") && <button onClick={() => openEdit(o)} className="text-slate-500 hover:text-accent-soft mr-3">✎</button>}
                       {can("organizations:delete") && <button onClick={() => remove(o.id)} className="text-slate-500 hover:text-rose-300">✕</button>}
@@ -75,6 +120,18 @@ export default function Organizations() {
                   </tr>
                 ))}
               </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-line bg-white/[0.04] font-semibold text-white">
+                  <td className="td whitespace-nowrap text-slate-300" colSpan={5}>
+                    Итого по фильтру · {data.length} орг.
+                  </td>
+                  <td className="td text-right tabular-nums border-l border-line">{fmtNum(sum(data, "opening_debit"))}</td>
+                  <td className="td text-right tabular-nums">{fmtNum(sum(data, "opening_credit"))}</td>
+                  <td className="td text-right tabular-nums text-emerald-300 border-l border-line">{fmtNum(sum(data, "balance_debit"))}</td>
+                  <td className="td text-right tabular-nums text-rose-300">{fmtNum(sum(data, "balance_credit"))}</td>
+                  <td className="td" />
+                </tr>
+              </tfoot>
             </table>
           </div>
         )}
@@ -91,13 +148,75 @@ export default function Organizations() {
               {ORG_CATS.map((c) => <option key={c.v} value={c.v}>{c.l}</option>)}
             </select>
           </Field>
+          <Field label="Ведомость Дт-Кт">
+            <select className="input" value={form.ledger} onChange={(e) => setForm({ ...form, ledger: e.target.value })}>
+              {ledgers?.map((l) => <option key={l.key} value={l.key}>{l.label}</option>)}
+            </select>
+          </Field>
           <Field label="Цех / принадлежность">
             <select className="input" value={form.belongs_to} onChange={(e) => setForm({ ...form, belongs_to: e.target.value })}>
               {["Прочие", "Махстон", "Турк", "Жби"].map((x) => <option key={x} value={x}>{x}</option>)}
             </select>
           </Field>
-          <Field label="Баланс USD"><MoneyInput value={form.balance_usd} onChange={(v) => setForm({ ...form, balance_usd: v })} /></Field>
-          <Field label="Баланс UZS"><MoneyInput value={form.balance_uzs} onChange={(v) => setForm({ ...form, balance_uzs: v })} /></Field>
+          <Field label="Код затрат (для ведомости «Офис»)">
+            <input className="input" value={form.expense_code} onChange={(e) => setForm({ ...form, expense_code: e.target.value })} />
+          </Field>
+          <div className="col-span-2 border-t border-line pt-3 flex items-baseline justify-between gap-3">
+            <div className="text-sm font-semibold text-white">Входящее сальдо на начало учёта</div>
+            <button type="button" className="text-xs text-slate-500 hover:text-accent-soft"
+              onClick={() => setHelp((h) => !h)}>
+              {help ? "▾" : "▸"} что это
+            </button>
+          </div>
+          {help && (
+            <p className="col-span-2 -mt-2 text-xs text-slate-500">
+              Заполняется ОДНА сторона — как в книге на листах «Дт Кт …»:
+              <b className="text-emerald-300"> Дебет</b> — контрагент должен нам;
+              <b className="text-rose-300"> Кредит</b> — мы должны контрагенту.
+              Текущее сальдо считается само: входящее + операции, приход ТМЦ, продажи и услуги.
+              Долларовая сумма — <b>валютная база</b> долга (не второй долг): она не пересчитывается,
+              и разница между «сальдо ÷ текущий курс» и ней даёт курсовую разницу.
+            </p>
+          )}
+          <Field label="ДЕБЕТ, сум — нам должны">
+            <MoneyInput value={form.open_dt}
+              onChange={(v) => setForm({ ...form, open_dt: v, open_dt_usd: toUsd(v, rate) })} />
+          </Field>
+          <Field label="КРЕДИТ, сум — мы должны">
+            <MoneyInput value={form.open_kt}
+              onChange={(v) => setForm({ ...form, open_kt: v, open_kt_usd: toUsd(v, rate) })} />
+          </Field>
+          <Field label={rate ? `…он же в USD (1$ = ${fmtNum(rate)})` : "ДЕБЕТ, USD"}>
+            <MoneyInput value={form.open_dt_usd}
+              onChange={(v) => setForm({ ...form, open_dt_usd: v, open_dt: toUzs(v, rate) })} />
+          </Field>
+          <Field label={rate ? `…он же в USD (на ${fmtDate(rateDate)})` : "КРЕДИТ, USD"}>
+            <MoneyInput value={form.open_kt_usd}
+              onChange={(v) => setForm({ ...form, open_kt_usd: v, open_kt: toUzs(v, rate) })} />
+          </Field>
+          {!rate && (
+            <div className="col-span-2 text-[11px] text-amber-300/80">
+              Курс доллара не заведён — валютная база не считается. Добавьте курс в разделе «Курс доллара».
+            </div>
+          )}
+          {(Number(form.open_dt || 0) > 0 && Number(form.open_kt || 0) > 0) && (
+            <div className="col-span-2 rounded-xl bg-amber-500/10 border border-amber-500/30 px-3.5 py-2.5 text-sm text-amber-200">
+              Заполнены обе стороны. В ведомость попадёт разница:{" "}
+              <b>
+                {Number(form.open_dt) >= Number(form.open_kt)
+                  ? `Дебет ${fmtNum(Number(form.open_dt) - Number(form.open_kt))}`
+                  : `Кредит ${fmtNum(Number(form.open_kt) - Number(form.open_dt))}`}
+              </b>
+            </div>
+          )}
+          {editing && (
+            <div className="col-span-2 rounded-xl bg-white/[0.03] border border-line px-3.5 py-2.5 text-sm">
+              <span className="text-slate-400">Текущее сальдо (расчётное): </span>
+              {editing.balance_credit
+                ? <b className="text-rose-300">Кредит {fmtNum(editing.balance_credit)} сум — мы должны</b>
+                : <b className="text-emerald-300">Дебет {fmtNum(editing.balance_debit)} сум — нам должны</b>}
+            </div>
+          )}
           <div className="col-span-2 flex items-center gap-2 pt-1">
             <input id="nds" type="checkbox" checked={form.nds_payer} onChange={(e) => setForm({ ...form, nds_payer: e.target.checked })} className="h-4 w-4 accent-[#5b8cff]" />
             <label htmlFor="nds" className="text-sm text-slate-300">Плательщик НДС</label>

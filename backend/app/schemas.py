@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, computed_field
 
 
 class ORMModel(BaseModel):
@@ -83,10 +83,14 @@ class OrgBase(BaseModel):
     inn: str = ""
     name: str
     category: str = "other"
+    ledger: str = "other"
+    expense_code: str = ""
     belongs_to: str = "Прочие"
     nds_payer: bool = False
     nds_type: str = ""
     phone: str = ""
+    opening_uzs: float = 0
+    opening_usd: float = 0
     balance_usd: float = 0
     balance_uzs: float = 0
 
@@ -99,10 +103,14 @@ class OrgUpdate(BaseModel):
     inn: str | None = None
     name: str | None = None
     category: str | None = None
+    ledger: str | None = None
+    expense_code: str | None = None
     belongs_to: str | None = None
     nds_payer: bool | None = None
     nds_type: str | None = None
     phone: str | None = None
+    opening_uzs: float | None = None
+    opening_usd: float | None = None
     balance_usd: float | None = None
     balance_uzs: float | None = None
 
@@ -111,16 +119,93 @@ class OrgOut(ORMModel, OrgBase):
     id: int
     created_at: datetime
 
+    # В книге «На начало месяца» — ДВЕ колонки (D «Дебет» и F «Кредит»),
+    # а не одно число со знаком. Храним одно сальдо (дебет минус кредит),
+    # но наружу отдаём обе стороны, чтобы форма и реестр не гадали по знаку.
+    @computed_field
+    @property
+    def opening_debit(self) -> float:
+        return round(max(float(self.opening_uzs or 0), 0), 2)
+
+    @computed_field
+    @property
+    def opening_credit(self) -> float:
+        return round(abs(min(float(self.opening_uzs or 0), 0)), 2)
+
+    @computed_field
+    @property
+    def balance_debit(self) -> float:
+        return round(max(float(self.balance_uzs or 0), 0), 2)
+
+    @computed_field
+    @property
+    def balance_credit(self) -> float:
+        return round(abs(min(float(self.balance_uzs or 0), 0)), 2)
+
+
+# ---------- Bank accounts / cash registers ----------
+class BankAccountBase(BaseModel):
+    name: str
+    account_no: str = ""
+    bank_name: str = ""
+    mfo: str = ""
+    currency: str = "UZS"
+    opening_uzs: float = 0
+    opening_usd: float = 0
+    is_active: bool = True
+
+
+class BankAccountUpdate(BaseModel):
+    name: str | None = None
+    account_no: str | None = None
+    bank_name: str | None = None
+    mfo: str | None = None
+    currency: str | None = None
+    opening_uzs: float | None = None
+    opening_usd: float | None = None
+    is_active: bool | None = None
+
+
+class BankAccountOut(ORMModel, BankAccountBase):
+    id: int
+
+
+class CashRegisterBase(BaseModel):
+    name: str
+    division: str = ""
+    currency: str = "UZS"
+    opening_uzs: float = 0
+    opening_usd: float = 0
+    is_active: bool = True
+
+
+class CashRegisterUpdate(BaseModel):
+    name: str | None = None
+    division: str | None = None
+    currency: str | None = None
+    opening_uzs: float | None = None
+    opening_usd: float | None = None
+    is_active: bool | None = None
+
+
+class CashRegisterOut(ORMModel, CashRegisterBase):
+    id: int
+
 
 # ---------- Directories: expense codes / CF codes / divisions ----------
 class CodeBase(BaseModel):
     code: str
     name: str
+    # для статей расходов — строка ОФР; для кодов ДДС — раздел отчёта
+    pnl_group: str = "admin"
+    activity: str = "operating"
 
 
 class CodeUpdate(BaseModel):
     code: str | None = None
     name: str | None = None
+    pnl_group: str | None = None
+    activity: str | None = None
 
 
 class CodeOut(ORMModel, CodeBase):
@@ -149,6 +234,15 @@ class TxBase(BaseModel):
     cashflow_code: str = ""
     division: str = ""
     cash_register: str = ""
+    bank_account_id: int | None = None
+    cash_register_id: int | None = None
+    doc_no: str = ""
+    mfo: str = ""
+    corr_account: str = ""
+    corr_name: str = ""
+    corr_inn: str = ""
+    purpose: str = ""
+    product_code: str = ""
     organization_id: int | None = None
     description: str = ""
 
@@ -170,6 +264,15 @@ class TxUpdate(BaseModel):
     cashflow_code: str | None = None
     division: str | None = None
     cash_register: str | None = None
+    bank_account_id: int | None = None
+    cash_register_id: int | None = None
+    doc_no: str | None = None
+    mfo: str | None = None
+    corr_account: str | None = None
+    corr_name: str | None = None
+    corr_inn: str | None = None
+    purpose: str | None = None
+    product_code: str | None = None
     organization_id: int | None = None
     description: str | None = None
 
@@ -188,8 +291,11 @@ class ProductBase(BaseModel):
     name: str
     short_name: str = ""
     unit: str = ""
+    opening_qty: float = 0
+    opening_cost: float = 0
     stock_qty: float = 0
     price_usd: float = 0
+    sale_price: float = 0
 
 
 class ProductCreate(ProductBase):
@@ -201,14 +307,16 @@ class ProductUpdate(BaseModel):
     name: str | None = None
     short_name: str | None = None
     unit: str | None = None
+    opening_qty: float | None = None
+    opening_cost: float | None = None
     stock_qty: float | None = None
     price_usd: float | None = None
+    sale_price: float | None = None
 
 
 class ProductOut(ORMModel, ProductBase):
     id: int
     avg_cost: float = 0
-    sale_price: float = 0
     created_at: datetime
 
 
@@ -220,6 +328,8 @@ class MaterialBase(BaseModel):
     kind: str = "raw"
     source: str = "Местный"
     warehouse: str = ""
+    opening_qty: float = 0
+    opening_cost: float = 0
     stock_qty: float = 0
     price_usd: float = 0
 
@@ -235,6 +345,8 @@ class MaterialUpdate(BaseModel):
     kind: str | None = None
     source: str | None = None
     warehouse: str | None = None
+    opening_qty: float | None = None
+    opening_cost: float | None = None
     stock_qty: float | None = None
     price_usd: float | None = None
 
@@ -254,12 +366,15 @@ class ReceiptBase(BaseModel):
     qty: float
     price_uzs: float = 0
     vat: bool = False
+    payment_type: str = ""      # Наличные / Перечисление / КПК
     note: str = ""
 
 
 class ReceiptOut(ORMModel, ReceiptBase):
     id: int
-    amount_uzs: float
+    amount_uzs: float           # без НДС
+    vat_amount: float = 0       # сумма НДС
+    amount_gross: float = 0     # с НДС
     material: MaterialOut | None = None
     organization: OrgOut | None = None
 
@@ -285,6 +400,8 @@ class ProductionBase(BaseModel):
     product_id: int
     division: str = ""
     qty: float
+    # себестоимость расчётная: делится на весь выпуск месяца, поэтому приходит
+    # только в ответе — на входе игнорируется (см. app/production.py)
     unit_cost: float = 0
     note: str = ""
 
@@ -303,6 +420,7 @@ class SaleBase(BaseModel):
     qty: float
     price_uzs: float = 0
     vat: bool = False
+    payment_type: str = ""      # Наличные / Перечисление / КПК
     note: str = ""
 
 
@@ -343,8 +461,13 @@ class EmployeeBase(BaseModel):
     department: str = ""
     position: str = ""
     category: str = ""
+    group: str = ""
+    status: str = ""
+    state: str = "Работает"
+    hire_date: date | None = None
     expense_code: str = ""
     payment_type: str = "Карта"
+    currency: str = "UZS"
     salary: float = 0
     is_active: bool = True
 
@@ -356,8 +479,13 @@ class EmployeeUpdate(BaseModel):
     department: str | None = None
     position: str | None = None
     category: str | None = None
+    group: str | None = None
+    status: str | None = None
+    state: str | None = None
+    hire_date: date | None = None
     expense_code: str | None = None
     payment_type: str | None = None
+    currency: str | None = None
     salary: float | None = None
     is_active: bool | None = None
 
@@ -370,27 +498,52 @@ class EmployeeOut(ORMModel, EmployeeBase):
 class PayrollBase(BaseModel):
     employee_id: int
     period: str
+    currency: str = "UZS"
+    pay_mode: str = "card"        # cash — без налогов | card — налог сверху
+    avans_type: str = ""          # cash | card, обязателен при авансе > 0
     norm_days: float = 0
     worked_days: float = 0
+    overtime_days: float = 0
+    debt_start: float = 0
+    # начисления
     oklad: float = 0
-    bonus: float = 0
     nadbavka: float = 0
     pitanie: float = 0
+    bonus: float = 0
+    benzin: float = 0
     other_accrued: float = 0
+    # удержания
+    hold_pitanie: float = 0
+    hold_alimony: float = 0
+    hold_other: float = 0
+    fine: float = 0
+    # выплаты
     avans: float = 0
-    paid: float = 0
+    paid_cash: float = 0
+    paid_card: float = 0
 
 
 class PayrollUpdate(BaseModel):
+    currency: str | None = None
+    pay_mode: str | None = None
+    avans_type: str | None = None
     norm_days: float | None = None
     worked_days: float | None = None
+    overtime_days: float | None = None
+    debt_start: float | None = None
     oklad: float | None = None
-    bonus: float | None = None
     nadbavka: float | None = None
     pitanie: float | None = None
+    bonus: float | None = None
+    benzin: float | None = None
     other_accrued: float | None = None
+    hold_pitanie: float | None = None
+    hold_alimony: float | None = None
+    hold_other: float | None = None
+    fine: float | None = None
     avans: float | None = None
-    paid: float | None = None
+    paid_cash: float | None = None
+    paid_card: float | None = None
 
 
 class PayrollOut(ORMModel, PayrollBase):
@@ -399,8 +552,11 @@ class PayrollOut(ORMModel, PayrollBase):
     ndfl: float
     inps: float
     esp: float
+    withheld: float
     net: float
+    paid: float
     balance: float
+    total_cost: float
     employee: EmployeeOut | None = None
 
 
@@ -443,6 +599,7 @@ class LoanBase(BaseModel):
     direction: str = "received"
     currency: str = "USD"
     principal: float = 0
+    opening_uzs: float = 0
     balance: float = 0
     note: str = ""
 
@@ -452,11 +609,24 @@ class LoanUpdate(BaseModel):
     direction: str | None = None
     currency: str | None = None
     principal: float | None = None
+    opening_uzs: float | None = None
     balance: float | None = None
     note: str | None = None
 
 
 class LoanOut(ORMModel, LoanBase):
+    id: int
+
+
+class LoanEntryBase(BaseModel):
+    loan_id: int
+    doc_date: date
+    kind: str = "debit"  # debit = выдача, credit = погашение
+    amount_uzs: float = 0
+    note: str = ""
+
+
+class LoanEntryOut(ORMModel, LoanEntryBase):
     id: int
 
 

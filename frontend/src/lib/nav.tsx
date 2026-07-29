@@ -32,6 +32,7 @@ export interface NavItem {
 export const NAV: NavItem[] = [
   { to: "/", label: "Дашборд", perm: "dashboard:view", icon: icons.dashboard, group: "Обзор" },
   { to: "/reports", label: "Отчёты", perm: "reports:view", icon: icons.report, group: "Обзор" },
+  { to: "/ledgers", label: "Ведомости Дт-Кт", perm: "reports:view", icon: icons.counter, group: "Обзор" },
   { to: "/transactions", label: "Банк и Касса", perm: "transactions:view", icon: icons.tx, group: "Финансы" },
   { to: "/organizations", label: "Организации", perm: "organizations:view", icon: icons.org, group: "Финансы" },
   { to: "/directories", label: "Справочники", perm: "articles:view", icon: icons.counter, group: "Финансы" },

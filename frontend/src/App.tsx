@@ -6,6 +6,7 @@ import Dashboard from "./pages/Dashboard";
 import Directories from "./pages/Directories";
 import Exchange from "./pages/Exchange";
 import Inventory from "./pages/Inventory";
+import Ledgers from "./pages/Ledgers";
 import Loans from "./pages/Loans";
 import Login from "./pages/Login";
 import Materials from "./pages/Materials";
@@ -19,6 +20,7 @@ import Settings from "./pages/Settings";
 import Taxes from "./pages/Taxes";
 import Transactions from "./pages/Transactions";
 import Users from "./pages/Users";
+import { PeriodProvider } from "./lib/period";
 import { useAuth } from "./store/auth";
 import { RealtimeProvider } from "./store/realtime";
 
@@ -56,6 +58,7 @@ export default function App() {
 
   return (
     <RealtimeProvider>
+      <PeriodProvider>
       <Routes>
         <Route path="/login" element={<Navigate to="/" replace />} />
         <Route
@@ -65,6 +68,7 @@ export default function App() {
               <Routes>
                 <Route path="/" element={<Guard perm="dashboard:view"><Dashboard /></Guard>} />
                 <Route path="/reports" element={<Guard perm="reports:view"><Reports /></Guard>} />
+                <Route path="/ledgers" element={<Guard perm="reports:view"><Ledgers /></Guard>} />
                 <Route path="/directories" element={<Guard perm="articles:view"><Directories /></Guard>} />
                 <Route path="/transactions" element={<Guard perm="transactions:view"><Transactions /></Guard>} />
                 <Route path="/organizations" element={<Guard perm="organizations:view"><Organizations /></Guard>} />
@@ -85,6 +89,7 @@ export default function App() {
           }
         />
       </Routes>
+      </PeriodProvider>
     </RealtimeProvider>
   );
 }

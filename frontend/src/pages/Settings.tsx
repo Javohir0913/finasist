@@ -32,7 +32,10 @@ export default function Settings() {
   };
 
   if (loading || !data) return <Spinner />;
-  const groups = Array.from(new Set(data.map((s) => s.group)));
+  // «Служебное» — внутренние отметки миграций и разовых пересчётов.
+  // Пользователю они ничего не говорят, а править их руками нельзя.
+  const shown = data.filter((s) => s.group !== "Служебное");
+  const groups = Array.from(new Set(shown.map((s) => s.group)));
 
   return (
     <div>
@@ -45,14 +48,14 @@ export default function Settings() {
         <Card key={grp} className="mb-4">
           <h3 className="font-semibold text-white mb-4">{grp}</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {data.filter((s) => s.group === grp).map((s) => (
+            {shown.filter((s) => s.group === grp).map((s) => (
               <div key={s.key} className="flex items-end gap-2">
                 <div className="flex-1">
                   <label className="label">{s.label}{s.kind === "percent" && " (%)"}</label>
                   <input
                     className="input"
-                    type="number"
-                    step="0.01"
+                    type={s.kind === "text" ? "text" : "number"}
+                    step={s.kind === "text" ? undefined : "0.01"}
                     disabled={!editable}
                     value={vals[s.key] ?? ""}
                     onChange={(e) => setVals({ ...vals, [s.key]: e.target.value })}

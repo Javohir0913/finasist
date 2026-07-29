@@ -7,7 +7,9 @@ from sqlalchemy.orm import selectinload
 
 from ..database import get_db
 from ..events import record
-from ..models import ExchangeRate, Organization, Transaction, User
+from ..ledger import recompute_org_balances
+from ..models import ExchangeRate, Transaction, User
+from ..production import recompute_production
 from ..schemas import TxCreate, TxOut, TxUpdate
 from ..security import get_current_user, require
 
@@ -48,21 +50,11 @@ async def _resolve_rate(db: AsyncSession, currency: str, doc_date: date) -> floa
     return rate
 
 
-async def _post_org(db: AsyncSession, org_id: int | None, direction: str, amount_usd: float, amount_uzs: float = 0.0):
-    """Post a cash movement to a counterparty's Дт-Кт balance (USD and UZS).
-
-    expense (we pay them) -> balance += amount (they owe us more / we owe less)
-    income  (they pay us) -> balance -= amount (they owe us less)
-    Pass negative amounts to reverse a previous posting.
-    """
-    if not org_id or (not amount_usd and not amount_uzs):
-        return
-    org = await db.get(Organization, org_id)
-    if not org:
-        return
-    sign = 1 if direction == "expense" else -1
-    org.balance_usd = float(org.balance_usd or 0) + sign * amount_usd
-    org.balance_uzs = float(org.balance_uzs or 0) + sign * amount_uzs
+async def _sync_orgs(db: AsyncSession, *org_ids: int | None):
+    """Пересчитать Дт-Кт сальдо затронутых контрагентов из первичных документов."""
+    ids = [i for i in org_ids if i]
+    if ids:
+        await recompute_org_balances(db, ids)
 
 
 @router.get("", response_model=list[TxOut])
@@ -108,7 +100,9 @@ async def create_tx(
     tx.amount_uzs = _uzs(body.currency, body.amount, rate)
     tx.created_by = current.id
     db.add(tx)
-    await _post_org(db, tx.organization_id, tx.direction, float(tx.amount_usd), float(tx.amount_uzs))
+    await db.flush()
+    await _sync_orgs(db, tx.organization_id)
+    await recompute_production(db, tx.division, tx.doc_date)
     await db.commit()
     await db.refresh(tx, ["organization"])
     await record(
@@ -132,14 +126,16 @@ async def update_tx(
     tx = await db.get(Transaction, tx_id)
     if not tx:
         raise HTTPException(status_code=404, detail="Операция не найдена")
-    # reverse the old posting before applying changes
-    await _post_org(db, tx.organization_id, tx.direction, -float(tx.amount_usd or 0), -float(tx.amount_uzs or 0))
+    old_org, old_div, old_date = tx.organization_id, tx.division, tx.doc_date
     for k, v in body.model_dump(exclude_unset=True).items():
         setattr(tx, k, v)
     tx.rate = await _resolve_rate(db, tx.currency, tx.doc_date)
     tx.amount_usd = _usd(tx.currency, float(tx.amount), float(tx.rate))
     tx.amount_uzs = _uzs(tx.currency, float(tx.amount), float(tx.rate))
-    await _post_org(db, tx.organization_id, tx.direction, float(tx.amount_usd), float(tx.amount_uzs))
+    await db.flush()
+    await _sync_orgs(db, old_org, tx.organization_id)
+    await recompute_production(db, old_div, old_date)
+    await recompute_production(db, tx.division, tx.doc_date)
     await db.commit()
     await db.refresh(tx, ["organization"])
     await record(db, current, "edit", "transaction", f"#{tx.id}", {"id": tx.id})
@@ -155,8 +151,10 @@ async def delete_tx(
     tx = await db.get(Transaction, tx_id)
     if not tx:
         raise HTTPException(status_code=404, detail="Операция не найдена")
-    # reverse its posting on the counterparty balance
-    await _post_org(db, tx.organization_id, tx.direction, -float(tx.amount_usd or 0), -float(tx.amount_uzs or 0))
+    org_id, div, when = tx.organization_id, tx.division, tx.doc_date
     await db.delete(tx)
+    await db.flush()
+    await _sync_orgs(db, org_id)
+    await recompute_production(db, div, when)
     await db.commit()
     await record(db, current, "delete", "transaction", f"#{tx_id}", {"id": tx_id})
