@@ -1,16 +1,21 @@
+# Продакшн. Отличия от docker-compose.yml:
+#   · наружу смотрит только веб-контейнер, и то на 127.0.0.1 — снаружи к нему
+#     не подключиться, запросы приходят через СИСТЕМНЫЙ nginx сервера;
+#   · порты базы и бэкенда не публикуются вообще;
+#   · исходники не монтируются — код запечён в образ, правки требуют пересборки.
+#
+# Запуск:  docker compose -f docker-compose.prod.yml up -d --build
 services:
   db:
     image: postgres:16-alpine
     container_name: finasist_db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:?нужен .env — скопируйте .env.example}
+      POSTGRES_USER: ${POSTGRES_USER:?нужен .env}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
       POSTGRES_DB: ${POSTGRES_DB:?}
     volumes:
       - pgdata:/var/lib/postgresql/data
-    ports:
-      - "5434:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER"]
       interval: 5s
@@ -30,11 +35,6 @@ services:
       SUPERADMIN_EMAIL: ${SUPERADMIN_EMAIL:?}
       SUPERADMIN_PASSWORD: ${SUPERADMIN_PASSWORD:?}
       SUPERADMIN_NAME: ${SUPERADMIN_NAME:-Super Admin}
-    # исходники монтируются, чтобы правки применялись по `restart` без пересборки
-    volumes:
-      - ./backend/app:/app/app
-    ports:
-      - "8000:8000"
 
   frontend:
     build: ./frontend
@@ -42,8 +42,9 @@ services:
     restart: unless-stopped
     depends_on:
       - backend
+    # только localhost: снаружи порт закрыт, наружу выводит системный nginx
     ports:
-      - "3000:80"
+      - "127.0.0.1:${WEB_PORT:-5181}:80"
 
 volumes:
   pgdata:

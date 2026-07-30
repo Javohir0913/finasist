@@ -6,8 +6,8 @@ import { useAuth } from "../store/auth";
 export default function Login() {
   const { login } = useAuth();
   const nav = useNavigate();
-  const [email, setEmail] = useState("admin@profitdivider.uz");
-  const [password, setPassword] = useState("Admin12345!");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -72,13 +72,9 @@ export default function Login() {
             </div>
           </div>
 
-          <button className="btn-primary w-full mt-6" disabled={loading}>
+          <button className="btn-primary w-full mt-6" disabled={loading || !email || !password}>
             {loading ? "Вход…" : "Войти"}
           </button>
-
-          <div className="mt-5 text-xs text-slate-600 text-center">
-            Демо: admin@profitdivider.uz · Admin12345!
-          </div>
         </form>
       </div>
     </div>
