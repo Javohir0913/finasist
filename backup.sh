@@ -10,7 +10,13 @@ OUT="$DIR/backups"
 KEEP_DAYS=14
 
 cd "$DIR"
-set -a; . ./.env; set +a
+
+# .env читаем разбором, а НЕ `source`: значения вида `SUPERADMIN_NAME=Super Admin`
+# оболочка попыталась бы выполнить как команду.
+env_get() { sed -n "s/^$1=//p" .env | tail -1 | tr -d '"'\''\r'; }
+POSTGRES_USER="$(env_get POSTGRES_USER)"
+POSTGRES_DB="$(env_get POSTGRES_DB)"
+: "${POSTGRES_USER:?в .env нет POSTGRES_USER}" "${POSTGRES_DB:?в .env нет POSTGRES_DB}"
 
 mkdir -p "$OUT"
 FILE="$OUT/finasist-$(date +%Y%m%d-%H%M%S).sql.gz"
