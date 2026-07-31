@@ -125,8 +125,16 @@ export default function Transactions() {
     setErr(""); setOpen(true);
   };
 
+  /**
+   * Код ДДС обязателен: без него операция не попадёт ни в одну строку отчёта
+   * Cash Flow и повиснет в «Без кода». Статья расхода — необязательна: в книге
+   * она заполняется только на прямые платежи (комиссии банка и т.п.), а по
+   * материалам и услугам расход уже приходит со своего документа.
+   */
+  const cfMissing = !String(form.cashflow_code || "").trim();
+
   const save = async () => {
-    if (rateMissing) return;
+    if (rateMissing || cfMissing) return;
     setErr(""); setSaving(true);
     const body = {
       ...form,
@@ -257,9 +265,14 @@ export default function Transactions() {
                 options={(expCodes || []).map((c) => ({ value: c.code, label: `${c.code} · ${c.name}` }))} />
             </Field>
           )}
-          <Field label="Код Cash Flow (ДДС)">
+          <Field label="Код Cash Flow (ДДС) *">
             <SearchSelect value={form.cashflow_code} onChange={(v) => setForm({ ...form, cashflow_code: v })}
               options={(cfCodes || []).map((c) => ({ value: c.code, label: `${c.code} · ${c.name}` }))} />
+            {cfMissing && (
+              <p className="mt-1 text-xs text-amber-300">
+                Обязательно — без кода операция не попадёт в отчёт Cash Flow
+              </p>
+            )}
           </Field>
           <Field label="Подразделение">
             <SearchSelect value={form.division} onChange={(v) => setForm({ ...form, division: v })} placeholder="— общее —" emptyLabel="— общее —"
@@ -354,7 +367,8 @@ export default function Transactions() {
 
         <div className="flex justify-end gap-2 mt-6">
           <button className="btn-ghost" onClick={() => setOpen(false)}>Отмена</button>
-          <button className="btn-primary" onClick={save} disabled={saving || rateMissing}>{saving ? "Сохранение…" : "Сохранить"}</button>
+          <button className="btn-primary" onClick={save} disabled={saving || rateMissing || cfMissing}
+            title={cfMissing ? "Заполните код Cash Flow (ДДС)" : undefined}>{saving ? "Сохранение…" : "Сохранить"}</button>
         </div>
       </Modal>
 

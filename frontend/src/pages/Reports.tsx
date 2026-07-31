@@ -1,7 +1,7 @@
 import { createContext, Fragment, useContext, useState } from "react";
 import { Card, EmptyState, SectionTitle, Spinner } from "../components/ui";
 import { ORG_CATS } from "../lib/cats";
-import { fmtMoney, fmtMoney2, makeMoney, withUnit } from "../lib/format";
+import { fmtDate, fmtMoney, fmtMoney2, makeMoney, withUnit } from "../lib/format";
 import { ExportButton, PeriodPicker, usePeriod, withPeriod } from "../lib/period";
 import { sum } from "../lib/table";
 import { useApi } from "../lib/useApi";
@@ -720,7 +720,104 @@ function FxDiff() {
           </tbody>
         </table>
       </Card>
+      <FxDocuments />
     </>
+  );
+}
+
+/**
+ * Расшифровка первой строки свода — до каждого документа.
+ * Переоценка сальдо линейна, поэтому вклад документа = его сумма / курс на
+ * конец − сумма в валюте по курсу дня; сумма вкладов равна разнице контрагента.
+ */
+function FxDocuments() {
+  const { data, loading } = useReport<any>("/reports/fx-difference/documents");
+  const [open, setOpen] = useState<Record<number, boolean>>({});
+  const [onlyPeriod, setOnlyPeriod] = useState(false);
+  if (loading || !data) return <div className="mt-4"><Spinner /></div>;
+  const usd = (v: number) => "$" + fmtMoney2(Number(v || 0));
+  const orgs = onlyPeriod
+    ? data.orgs.filter((o: any) => o.docs.some((d: any) => d.in_period))
+    : data.orgs;
+  return (
+    <Card className="!p-0 overflow-hidden mt-4">
+      <div className="p-4 border-b border-line flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 className="font-semibold text-white">Расшифровка по документам</h3>
+          <p className="text-xs text-slate-500 mt-1">
+            Строка «Дебиторская и кредиторская задолженность» — по каждому контрагенту
+            и документу. Деньги и займы сюда не входят: они переоцениваются не по
+            документам, а ежедневно и по курсу на дату движения.
+          </p>
+        </div>
+        <label className="flex items-center gap-2 text-sm text-slate-400 whitespace-nowrap">
+          <input type="checkbox" checked={onlyPeriod} onChange={(e) => setOnlyPeriod(e.target.checked)}
+            className="h-4 w-4 accent-[#5b8cff]" />
+          только с документами периода
+        </label>
+      </div>
+      {!orgs.length ? <EmptyState text="Нет переоценённых контрагентов за период" /> : (
+        <div className="overflow-x-auto"><table className="w-full min-w-[880px] text-sm">
+          <thead><tr className="bg-white/[0.02]">
+            <th className="th">Контрагент / документ</th>
+            <th className="th">Дата</th>
+            <th className="th text-right">Сумма, сум</th>
+            <th className="th text-right">Курс док.</th>
+            <th className="th text-right">Сумма, $</th>
+            <th className="th text-right">Курсовая разница, $</th>
+          </tr></thead>
+          <tbody>
+            {orgs.map((o: any) => (
+              <Fragment key={o.id}>
+                <tr className="bg-white/[0.03] cursor-pointer hover:bg-white/[0.05]"
+                    onClick={() => setOpen((s) => ({ ...s, [o.id]: !s[o.id] }))}>
+                  <td className="td font-semibold text-white">
+                    <span className="text-slate-500 mr-2">{open[o.id] ? "▾" : "▸"}</span>
+                    {o.name}
+                    <span className="chip ml-2 bg-white/5 text-slate-500 border border-line text-[10px]">
+                      {o.docs.length} док.
+                    </span>
+                  </td>
+                  <td className="td" />
+                  <td className="td text-right tabular-nums text-slate-300">{fmtMoney(o.closing_uzs)}</td>
+                  <td className="td" />
+                  <td className="td text-right tabular-nums text-slate-400">{fmtMoney2(o.closing_usd)}</td>
+                  <td className={`td text-right font-semibold tabular-nums ${o.fx >= 0 ? "text-emerald-300" : "text-rose-300"}`}>
+                    {usd(o.fx)}
+                  </td>
+                </tr>
+                {open[o.id] && o.docs.map((r: any, i: number) => (
+                  <tr key={i} className={r.in_period ? "hover:bg-white/[0.02]" : "text-slate-500 hover:bg-white/[0.02]"}>
+                    <td className="td pl-10">
+                      <span className="text-slate-400">{r.kind}</span>
+                      <span className="text-slate-600 mx-1.5">·</span>
+                      {r.label}
+                    </td>
+                    <td className="td whitespace-nowrap text-slate-400">
+                      {r.date ? fmtDate(r.date) : "вход. сальдо"}
+                    </td>
+                    <td className="td text-right tabular-nums">{fmtMoney(r.uzs)}</td>
+                    <td className="td text-right tabular-nums text-slate-500">
+                      {r.rate_doc ? fmtMoney(r.rate_doc) : "—"}
+                    </td>
+                    <td className="td text-right tabular-nums text-slate-400">{fmtMoney2(r.usd)}</td>
+                    <td className={`td text-right tabular-nums ${r.fx >= 0 ? "text-emerald-300/80" : "text-rose-300/80"}`}>
+                      {r.fx ? usd(r.fx) : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </Fragment>
+            ))}
+            <tr className="bg-white/[0.03] font-semibold">
+              <td className="td text-white" colSpan={5}>ИТОГО по задолженности</td>
+              <td className={`td text-right tabular-nums ${data.totals.net >= 0 ? "text-emerald-300" : "text-rose-300"}`}>
+                {usd(data.totals.net)}
+              </td>
+            </tr>
+          </tbody>
+        </table></div>
+      )}
+    </Card>
   );
 }
 

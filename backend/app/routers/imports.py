@@ -280,10 +280,14 @@ async def _tx_row(db: AsyncSession, row: dict, res: Resolver) -> dict:
     rate = await _resolve_rate(db, currency, d)
 
     org = res.org(_pick(row, "Отправитель/Получатель", "Организация", "org"),
-                  _pick(row, "ИНН", "inn"))
+                  _pick(row, "ИНН", "ИНН по данным банка", "inn"))
     bank = res.banks.get(str(_pick(row, "Банковский счёт", "bank_account") or "").upper())
     till = res.tills.get(str(_pick(row, "Касса", "cash_register") or "").upper())
 
+    # Заголовки в книге PROFIT DIVIDER на листах БАНК и КАССА названы по-разному
+    # («код расходов» / «Код для расходов», «код cash flow» / «Код платежа»),
+    # поэтому у каждого поля перечислены оба варианта — иначе колонка молча
+    # не подхватывалась и код расхода терялся при загрузке.
     tx = Transaction(
         doc_date=d, direction=direction, account=account, currency=currency,
         amount=amount, rate=rate,
@@ -291,15 +295,18 @@ async def _tx_row(db: AsyncSession, row: dict, res: Resolver) -> dict:
         organization_id=org.id if org else None,
         bank_account_id=bank.id if bank else None,
         cash_register_id=till.id if till else None,
-        expense_code=str(_pick(row, "Код расхода", "expense_code") or ""),
-        cashflow_code=str(_pick(row, "Код cash flow", "cashflow_code") or ""),
+        expense_code=str(_pick(row, "Код расхода", "код расходов",
+                              "Код для расходов", "expense_code") or ""),
+        cashflow_code=str(_pick(row, "Код cash flow", "код cash flow",
+                                "Код платежа", "cashflow_code") or ""),
         division=str(_pick(row, "Объект", "Подразделение", "division") or ""),
-        doc_no=str(_pick(row, "№ документа", "doc_no") or ""),
-        mfo=str(_pick(row, "МФО", "mfo") or ""),
-        corr_account=str(_pick(row, "Счёт корресп.", "corr_account") or ""),
+        doc_no=str(_pick(row, "№ документа", "Номер документа", "doc_no") or ""),
+        mfo=str(_pick(row, "МФО", "МФО корресп.", "mfo") or ""),
+        corr_account=str(_pick(row, "Счёт корресп.", "Счет корреспондента",
+                               "corr_account") or ""),
         corr_name=str(_pick(row, "Наименование корресп.", "corr_name") or ""),
-        corr_inn=str(_pick(row, "ИНН", "corr_inn") or ""),
-        purpose=str(_pick(row, "Назначение по кодировке", "purpose") or ""),
+        corr_inn=str(_pick(row, "ИНН по данным банка", "ИНН", "corr_inn") or ""),
+        purpose=str(_pick(row, "Назначение по кодировке", "Назначение", "purpose") or ""),
         description=str(_pick(row, "Наименование платежа", "description") or ""),
     )
     return {"model": tx, "summary": f"{d} {account} {direction} {amount:,.2f} {currency}"}

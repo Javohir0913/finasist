@@ -3,7 +3,7 @@ import api, { apiError } from "../api/client";
 import { Badge, Card, EmptyState, Field, Modal, MoneyInput, SectionTitle, Spinner } from "../components/ui";
 import { fmtDate, fmtNum } from "../lib/format";
 import { ORG_CATS, catLabel, catTone } from "../lib/cats";
-import { toUsd, toUzs, useOpeningRate } from "../lib/rate";
+import { useOpeningRate } from "../lib/rate";
 import { sum } from "../lib/table";
 import { useApi } from "../lib/useApi";
 import { useAuth } from "../store/auth";
@@ -12,7 +12,8 @@ interface Org {
   id: number; inn: string; name: string; category: string; ledger: string;
   expense_code: string; belongs_to: string;
   nds_payer: boolean; nds_type: string; phone: string;
-  opening_uzs: number; opening_usd: number; balance_usd: number; balance_uzs: number;
+  opening_uzs: number; opening_usd: number; opening_rate: number; opening_date: string | null;
+  balance_usd: number; balance_uzs: number;
   opening_debit: number; opening_credit: number;
   balance_debit: number; balance_credit: number;
 }
@@ -20,7 +21,7 @@ interface LedgerType { key: string; label: string }
 const empty = {
   inn: "", name: "", category: "customer", ledger: "customers", expense_code: "",
   belongs_to: "Прочие", nds_payer: false, nds_type: "", phone: "",
-  open_dt: 0, open_kt: 0, open_dt_usd: 0, open_kt_usd: 0,
+  open_dt: 0, open_kt: 0, opening_rate: 0, opening_date: "",
 };
 
 export default function Organizations() {
@@ -37,27 +38,46 @@ export default function Organizations() {
   const ledgerLabel = (k: string) => ledgers?.find((l) => l.key === k)?.label ?? k;
   const { rate, date: rateDate } = useOpeningRate();
 
-  const openNew = () => { setEditing(null); setForm(empty); setErr(""); setOpen(true); };
+  // сальдо без даты и курса запрещено: непонятно, с какого момента оно
+  // существует, а валютная база осталась бы нулевой — и всё сальдо ушло бы
+  // в курсовой доход
+  const openingUzs = Number(form.open_dt || 0) - Number(form.open_kt || 0);
+  const dateMissing = !!openingUzs && !form.opening_date;
+  const rateMissing = !!openingUzs && !(Number(form.opening_rate) > 0);
+  const blocked = dateMissing || rateMissing;
+  const openingUsd = openingUzs && Number(form.opening_rate) > 0
+    ? openingUzs / Number(form.opening_rate) : 0;
+
+  const openNew = () => {
+    setEditing(null);
+    // по умолчанию — дата начала учёта и курс на неё; и то и другое можно менять
+    setForm({ ...empty, opening_rate: rate || 0, opening_date: rateDate || "" });
+    setErr(""); setOpen(true);
+  };
   const openEdit = (o: Org) => {
     setEditing(o);
     setForm({
       ...o,
       open_dt: o.opening_debit, open_kt: o.opening_credit,
-      open_dt_usd: Math.max(o.opening_usd, 0), open_kt_usd: Math.max(-o.opening_usd, 0),
+      opening_rate: o.opening_rate || 0,
+      opening_date: o.opening_date || "",
     });
     setErr(""); setOpen(true);
   };
 
   const save = async () => {
+    if (blocked) return;
     setErr(""); setSaving(true);
     // Дебет и кредит — две стороны ОДНОГО сальдо, поэтому в базу уходит
     // разница: дебет со знаком «+», кредит со знаком «−».
+    // opening_usd не шлём — сервер считает его как сальдо / курс.
     const body = {
       ...form,
-      opening_uzs: Number(form.open_dt || 0) - Number(form.open_kt || 0),
-      opening_usd: Number(form.open_dt_usd || 0) - Number(form.open_kt_usd || 0),
+      opening_uzs: openingUzs,
+      opening_rate: Number(form.opening_rate || 0),
+      opening_date: form.opening_date || null,
     };
-    ["open_dt", "open_kt", "open_dt_usd", "open_kt_usd",
+    ["open_dt", "open_kt", "opening_usd",
      "opening_debit", "opening_credit", "balance_debit", "balance_credit"].forEach((k) => delete body[k]);
     delete body.balance_usd;   // сальдо считает сервер из документов
     delete body.balance_uzs;
@@ -174,31 +194,51 @@ export default function Organizations() {
               <b className="text-emerald-300"> Дебет</b> — контрагент должен нам;
               <b className="text-rose-300"> Кредит</b> — мы должны контрагенту.
               Текущее сальдо считается само: входящее + операции, приход ТМЦ, продажи и услуги.
-              Долларовая сумма — <b>валютная база</b> долга (не второй долг): она не пересчитывается,
-              и разница между «сальдо ÷ текущий курс» и ней даёт курсовую разницу.
+              Курс задаётся <b>для самого сальдо</b> и работает только на него — документы
+              берут курс на свою дату. По нему считается <b>валютная база</b> долга; она больше
+              не пересчитывается, и разница между «сальдо ÷ курс на конец периода» и этой базой
+              и есть курсовая разница.
             </p>
           )}
           <Field label="ДЕБЕТ, сум — нам должны">
-            <MoneyInput value={form.open_dt}
-              onChange={(v) => setForm({ ...form, open_dt: v, open_dt_usd: toUsd(v, rate) })} />
+            <MoneyInput value={form.open_dt} onChange={(v) => setForm({ ...form, open_dt: v })} />
           </Field>
           <Field label="КРЕДИТ, сум — мы должны">
-            <MoneyInput value={form.open_kt}
-              onChange={(v) => setForm({ ...form, open_kt: v, open_kt_usd: toUsd(v, rate) })} />
+            <MoneyInput value={form.open_kt} onChange={(v) => setForm({ ...form, open_kt: v })} />
           </Field>
-          <Field label={rate ? `…он же в USD (1$ = ${fmtNum(rate)})` : "ДЕБЕТ, USD"}>
-            <MoneyInput value={form.open_dt_usd}
-              onChange={(v) => setForm({ ...form, open_dt_usd: v, open_dt: toUzs(v, rate) })} />
+          <Field label="Дата сальдо *">
+            <input type="date" className="input" value={form.opening_date || ""}
+              onChange={(e) => setForm({ ...form, opening_date: e.target.value })} />
+            {dateMissing ? (
+              <p className="mt-1 text-xs text-amber-300">
+                Обязательно: на какую дату зафиксирован остаток
+              </p>
+            ) : (
+              <p className="mt-1 text-xs text-slate-500">по ней берётся курс сальдо</p>
+            )}
           </Field>
-          <Field label={rate ? `…он же в USD (на ${fmtDate(rateDate)})` : "КРЕДИТ, USD"}>
-            <MoneyInput value={form.open_kt_usd}
-              onChange={(v) => setForm({ ...form, open_kt_usd: v, open_kt: toUzs(v, rate) })} />
+          <Field label="Курс сальдо (1$ = … сум) *">
+            <MoneyInput value={form.opening_rate}
+              onChange={(v) => setForm({ ...form, opening_rate: v })}
+              placeholder={rate ? String(rate) : "12500"} />
+            {rateMissing ? (
+              <p className="mt-1 text-xs text-amber-300">
+                Обязательно: без курса всё сальдо уйдёт в курсовую разницу
+              </p>
+            ) : rate ? (
+              <button type="button" className="mt-1 text-xs text-slate-500 hover:text-accent-soft"
+                onClick={() => setForm({ ...form, opening_rate: rate })}>
+                подставить курс на начало учёта ({fmtNum(rate)}{rateDate ? ` · ${fmtDate(rateDate)}` : ""})
+              </button>
+            ) : null}
           </Field>
-          {!rate && (
-            <div className="col-span-2 text-[11px] text-amber-300/80">
-              Курс доллара не заведён — валютная база не считается. Добавьте курс в разделе «Курс доллара».
-            </div>
-          )}
+          <Field label="Валютная база сальдо, $">
+            <input className="input disabled:opacity-70" disabled
+              value={openingUsd ? fmtNum(Math.abs(Math.round(openingUsd * 100) / 100)) : "—"} />
+            <p className="mt-1 text-xs text-slate-500">
+              {openingUzs ? (openingUzs > 0 ? "Дебет" : "Кредит") : "считается как сальдо ÷ курс"}
+            </p>
+          </Field>
           {(Number(form.open_dt || 0) > 0 && Number(form.open_kt || 0) > 0) && (
             <div className="col-span-2 rounded-xl bg-amber-500/10 border border-amber-500/30 px-3.5 py-2.5 text-sm text-amber-200">
               Заполнены обе стороны. В ведомость попадёт разница:{" "}
@@ -224,7 +264,9 @@ export default function Organizations() {
         </div>
         <div className="flex justify-end gap-2 mt-6">
           <button className="btn-ghost" onClick={() => setOpen(false)}>Отмена</button>
-          <button className="btn-primary" onClick={save} disabled={saving}>{saving ? "Сохранение…" : "Сохранить"}</button>
+          <button className="btn-primary" onClick={save} disabled={saving || blocked}
+            title={dateMissing ? "Укажите дату входящего сальдо"
+                 : rateMissing ? "Укажите курс для входящего сальдо" : undefined}>{saving ? "Сохранение…" : "Сохранить"}</button>
         </div>
       </Modal>
     </div>

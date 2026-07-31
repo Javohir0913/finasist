@@ -57,6 +57,20 @@ async def _sync_orgs(db: AsyncSession, *org_ids: int | None):
         await recompute_org_balances(db, ids)
 
 
+def _require_cashflow_code(code: str | None):
+    """Код ДДС обязателен для каждой операции банка и кассы.
+
+    Без него строка не попадает ни в один раздел отчёта Cash Flow и оседает
+    в «Без кода». Статья расхода при этом остаётся необязательной — см.
+    комментарий в форме операции.
+    """
+    if not str(code or "").strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Укажите код Cash Flow (ДДС) — без него операция не попадёт в отчёт.",
+        )
+
+
 @router.get("", response_model=list[TxOut])
 async def list_tx(
     direction: str | None = None,
@@ -93,6 +107,7 @@ async def create_tx(
 ):
     if body.direction not in ("income", "expense"):
         raise HTTPException(status_code=400, detail="direction: income | expense")
+    _require_cashflow_code(body.cashflow_code)
     rate = await _resolve_rate(db, body.currency, body.doc_date)
     tx = Transaction(**body.model_dump())
     tx.rate = rate
@@ -129,6 +144,7 @@ async def update_tx(
     old_org, old_div, old_date = tx.organization_id, tx.division, tx.doc_date
     for k, v in body.model_dump(exclude_unset=True).items():
         setattr(tx, k, v)
+    _require_cashflow_code(tx.cashflow_code)
     tx.rate = await _resolve_rate(db, tx.currency, tx.doc_date)
     tx.amount_usd = _usd(tx.currency, float(tx.amount), float(tx.rate))
     tx.amount_uzs = _uzs(tx.currency, float(tx.amount), float(tx.rate))

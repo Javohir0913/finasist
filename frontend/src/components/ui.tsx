@@ -103,7 +103,7 @@ export function SearchSelect({
 }
 
 // ---- Money / number input: space grouping, dot decimal, blocks - e + ----
-function cleanNumeric(s: string): string {
+function cleanNumeric(s: string, decimals = 2): string {
   let x = s;
   // comma is decimal separator -> convert to dot. If a comma exists, treat any dots
   // as thousand separators (from paste) and drop them first.
@@ -111,7 +111,7 @@ function cleanNumeric(s: string): string {
   x = x.replace(/,/g, "."); // comma -> dot
   x = x.replace(/[^\d.]/g, ""); // drop spaces / letters / etc.
   const i = x.indexOf(".");
-  if (i !== -1) x = x.slice(0, i + 1) + x.slice(i + 1).replace(/\./g, "").slice(0, 2); // one dot, max 2 dec
+  if (i !== -1) x = x.slice(0, i + 1) + x.slice(i + 1).replace(/\./g, "").slice(0, decimals);
   // strip leading zeros in the integer part: "05000" -> "5000", "007" -> "7", keep "0" / "0.5"
   const dot = x.indexOf(".");
   if (dot === -1) x = x.replace(/^0+(?=\d)/, "");
@@ -134,20 +134,22 @@ export function MoneyInput({
   className = "input",
   placeholder,
   disabled,
+  decimals = 2,
 }: {
   value: number | string | null | undefined;
   onChange: (v: string) => void; // clean numeric string, e.g. "5000000.23"
   className?: string;
   placeholder?: string;
   disabled?: boolean;
+  decimals?: number; // знаков после запятой (ставки налогов требуют больше 2)
 }) {
-  const [display, setDisplay] = useState(() => displayNumeric(cleanNumeric(String(value ?? ""))));
+  const [display, setDisplay] = useState(() => displayNumeric(cleanNumeric(String(value ?? ""), decimals)));
 
   // re-sync when the external value differs numerically (e.g. form reset / edit)
   useEffect(() => {
     const cur = display.replace(/\s/g, "");
     if (parseFloat(cur || "0") !== Number(value || 0)) {
-      setDisplay(displayNumeric(cleanNumeric(String(value ?? ""))));
+      setDisplay(displayNumeric(cleanNumeric(String(value ?? ""), decimals)));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
@@ -164,7 +166,7 @@ export function MoneyInput({
         if (["e", "E", "+", "-"].includes(e.key)) e.preventDefault();
       }}
       onChange={(e) => {
-        const clean = cleanNumeric(e.target.value);
+        const clean = cleanNumeric(e.target.value, decimals);
         setDisplay(displayNumeric(clean));
         onChange(clean);
       }}

@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
 from ..events import record
-from ..ledger import LEDGER_KEYS, recompute_org_balances
+from ..ledger import LEDGER_KEYS, OPENING_DATE_REQUIRED, recompute_org_balances
 from ..models import (
     Loan,
     MaterialReceipt,
@@ -45,6 +45,37 @@ def _check_ledger(value: str | None):
         raise HTTPException(400, detail=f"Неизвестный вид ведомости: {value}")
 
 
+def _apply_opening(org: Organization, uzs, rate, when):
+    """Зафиксировать входящее сальдо вместе с его датой и курсом.
+
+    Дата и курс обязательны, как только сальдо не нулевое:
+
+    · дата говорит, НА какой момент зафиксировано сальдо — по ней берётся курс,
+      и до этой даты сальдо в отчёты не попадает;
+    · курс задаёт валютную базу (`opening_usd` = сальдо / курс). База дальше НЕ
+      пересчитывается — именно разница между «сальдо ÷ курс на конец периода»
+      и ней даёт курсовую разницу. Без курса база нулевая и всё сальдо целиком
+      уходит в курсовой доход.
+
+    Курс действует ТОЛЬКО на сальдо: документы берут курс на свою дату.
+    """
+    amount = float(uzs if uzs is not None else (org.opening_uzs or 0))
+    r = float(rate if rate is not None else (org.opening_rate or 0))
+    d = when if when is not None else org.opening_date
+    if amount and not d:
+        raise HTTPException(400, detail=OPENING_DATE_REQUIRED)
+    if amount and r <= 0:
+        raise HTTPException(
+            400,
+            detail="Укажите курс для входящего сальдо — без него валютная база "
+                   "будет нулевой и всё сальдо попадёт в курсовую разницу.",
+        )
+    org.opening_uzs = round(amount, 2)
+    org.opening_rate = round(r, 2)
+    org.opening_date = d if amount else None
+    org.opening_usd = round(amount / r, 2) if amount and r else 0.0
+
+
 @router.post("", response_model=OrgOut, status_code=201)
 async def create_org(
     body: OrgCreate,
@@ -52,7 +83,12 @@ async def create_org(
     db: AsyncSession = Depends(get_db),
 ):
     _check_ledger(body.ledger)
-    org = Organization(**body.model_dump())
+    data = body.model_dump()
+    uzs, rate = data.pop("opening_uzs", 0), data.pop("opening_rate", 0)
+    when = data.pop("opening_date", None)
+    data.pop("opening_usd", None)          # считается из курса, извне не берём
+    org = Organization(**data)
+    _apply_opening(org, uzs, rate, when)
     db.add(org)
     await db.flush()
     # сальдо = входящее + обороты по документам, а не то, что прислал клиент
@@ -74,8 +110,14 @@ async def update_org(
     if not org:
         raise HTTPException(status_code=404, detail="Организация не найдена")
     _check_ledger(body.ledger)
-    for k, v in body.model_dump(exclude_unset=True).items():
+    data = body.model_dump(exclude_unset=True)
+    uzs, rate = data.pop("opening_uzs", None), data.pop("opening_rate", None)
+    when = data.pop("opening_date", None)
+    data.pop("opening_usd", None)          # считается из курса, извне не берём
+    for k, v in data.items():
         setattr(org, k, v)
+    if uzs is not None or rate is not None or when is not None:
+        _apply_opening(org, uzs, rate, when)
     await db.flush()
     await recompute_org_balances(db, [org.id])
     await db.commit()

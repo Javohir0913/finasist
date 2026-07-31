@@ -91,6 +91,8 @@ class OrgBase(BaseModel):
     phone: str = ""
     opening_uzs: float = 0
     opening_usd: float = 0
+    opening_rate: float = 0
+    opening_date: date | None = None
     balance_usd: float = 0
     balance_uzs: float = 0
 
@@ -111,6 +113,8 @@ class OrgUpdate(BaseModel):
     phone: str | None = None
     opening_uzs: float | None = None
     opening_usd: float | None = None
+    opening_rate: float | None = None
+    opening_date: date | None = None
     balance_usd: float | None = None
     balance_uzs: float | None = None
 
@@ -152,6 +156,7 @@ class BankAccountBase(BaseModel):
     currency: str = "UZS"
     opening_uzs: float = 0
     opening_usd: float = 0
+    opening_date: date | None = None
     is_active: bool = True
 
 
@@ -163,6 +168,7 @@ class BankAccountUpdate(BaseModel):
     currency: str | None = None
     opening_uzs: float | None = None
     opening_usd: float | None = None
+    opening_date: date | None = None
     is_active: bool | None = None
 
 
@@ -176,6 +182,7 @@ class CashRegisterBase(BaseModel):
     currency: str = "UZS"
     opening_uzs: float = 0
     opening_usd: float = 0
+    opening_date: date | None = None
     is_active: bool = True
 
 
@@ -185,6 +192,7 @@ class CashRegisterUpdate(BaseModel):
     currency: str | None = None
     opening_uzs: float | None = None
     opening_usd: float | None = None
+    opening_date: date | None = None
     is_active: bool | None = None
 
 
@@ -574,6 +582,7 @@ class RateOut(ORMModel, RateBase):
 class TaxBase(BaseModel):
     name: str
     period: str = ""
+    accrued_date: date | None = None
     debt_start: float = 0
     accrued: float = 0
     paid: float = 0
@@ -583,6 +592,7 @@ class TaxBase(BaseModel):
 class TaxUpdate(BaseModel):
     name: str | None = None
     period: str | None = None
+    accrued_date: date | None = None
     debt_start: float | None = None
     accrued: float | None = None
     paid: float | None = None
@@ -600,6 +610,7 @@ class LoanBase(BaseModel):
     currency: str = "USD"
     principal: float = 0
     opening_uzs: float = 0
+    opening_date: date | None = None
     balance: float = 0
     note: str = ""
 
@@ -610,6 +621,7 @@ class LoanUpdate(BaseModel):
     currency: str | None = None
     principal: float | None = None
     opening_uzs: float | None = None
+    opening_date: date | None = None
     balance: float | None = None
     note: str | None = None
 

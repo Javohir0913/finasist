@@ -8,7 +8,15 @@ from sqlalchemy import extract, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
-from ..ledger import _rate_map, cash_opening, fx_of, ledger_rows, rate_on
+from ..ledger import (
+    _rate_map,
+    cash_opening,
+    fx_of,
+    ledger_rows,
+    opening_active,
+    org_fx_documents,
+    rate_on,
+)
 from ..rates import get_rates
 from ..models import (
     BankAccount,
@@ -633,16 +641,15 @@ async def pnl(
     extraordinary = -g["extraordinary"]                        # 230 (убыток -> минус)
     before_tax = gh_profit + extraordinary                     # 240
 
-    # Налог на прибыль (250): из модуля «Налоги», иначе авто по ставке
-    manual_tax = float(
+    # Налог на прибыль (250): ТОЛЬКО начисленное в модуле «Налоги».
+    # Автоподстановка по ставке убрана — налог считает бухгалтер, как земельный
+    # и прочие налоги. Не начислено — в отчёте ноль, а не расчётная величина.
+    tax = float(
         await db.scalar(
             select(func.coalesce(func.sum(Tax.accrued), 0)).where(Tax.name.ilike("%прибыль%"))
         )
         or 0
     )
-    prate = (await get_rates(db))["profit_tax_rate"]
-    auto_tax = round(before_tax * prate, 2) if before_tax > 0 else 0.0
-    tax = manual_tax if manual_tax > 0 else auto_tax
     other_taxes = g["profit_tax"]                              # 260
     net = before_tax - tax - other_taxes                        # 270
 
@@ -735,16 +742,10 @@ async def _taxes_core(db: AsyncSession, year, month):
     ndfl_a, inps_a, esp_a = (await db.execute(pstmt)).one()
     ndfl_a, inps_a, esp_a = float(ndfl_a), float(inps_a), float(esp_a)
 
-    # --- налог на прибыль = 15% операционной прибыли ---
-    rev = await s(select(func.coalesce(func.sum(Sale.revenue_net), 0)), Sale.doc_date)
-    cogs = await s(select(func.coalesce(func.sum(Sale.cogs_uzs), 0)), Sale.doc_date)
-    g = await _expense_groups_uzs(db, year, month)
-    op_profit = rev - cogs - g["period"]
-    profit_accrued = round(op_profit * rates["profit_tax_rate"], 2) if op_profit > 0 else 0.0
-
+    # Налог на прибыль СЧИТАЕТСЯ ВРУЧНУЮ — как земельный и прочие налоги:
+    # начисление берётся из карточки налога, автоподстановки 15% больше нет.
     accrued_map = {
         "НДС": nds_accrued,
-        "Налог на прибыль": profit_accrued,
         "НДФЛ": ndfl_a,
         "ЕСП": esp_a,
         "ИНПС": inps_a,
@@ -760,6 +761,7 @@ async def _taxes_core(db: AsyncSession, year, month):
         )
         return await s(stmt, Transaction.doc_date)
 
+    p_start, p_end = _period_bounds(year, month)
     taxes = (await db.execute(select(Tax).order_by(Tax.id))).scalars().all()
     rows = []
     tot = {"start": 0.0, "accrued": 0.0, "paid": 0.0, "end": 0.0}
@@ -770,14 +772,24 @@ async def _taxes_core(db: AsyncSession, year, month):
             if key.lower() in t.name.lower():
                 acc_auto = val
                 break
-        accrued = acc_auto if acc_auto is not None else float(t.accrued or 0)
-        paid = await paid_of(t.name)
-        if paid == 0:
-            paid = float(t.paid or 0)  # запасной вариант — ручное
-        start = float(t.debt_start or 0)
+        # ручные суммы попадают только в тот период, где стоит их дата
+        manual_in_period = (
+            (p_start is None or (t.accrued_date and t.accrued_date >= p_start))
+            and (p_end is None or (t.accrued_date and t.accrued_date <= p_end))
+        )
+        # авто-начисление уже собрано по датам первичных документов
+        accrued = acc_auto if acc_auto is not None else (
+            float(t.accrued or 0) if manual_in_period else 0.0
+        )
+        paid = await paid_of(t.name)          # по дате платёжной операции
+        if paid == 0 and manual_in_period:
+            paid = float(t.paid or 0)         # запасной вариант — ручное
+        # долг на начало — по той же дате: до неё его ещё не было
+        start = float(t.debt_start or 0) if opening_active(t.accrued_date, p_end) else 0.0
         end = round(start + accrued - paid, 2)
         rows.append({
             "id": t.id, "name": t.name, "debt_start": start,
+            "accrued_date": t.accrued_date.isoformat() if t.accrued_date else None,
             "accrued": round(accrued, 2), "auto": acc_auto is not None,
             "paid": round(paid, 2), "debt_end": max(end, 0), "overpay": max(-end, 0),
         })
@@ -864,8 +876,10 @@ async def fx_difference(
         for l in loans:
             if (l.currency or "UZS") == "USD":
                 continue  # займ уже в долларах — переоценивать нечего
-            uzs = float(l.opening_uzs or 0)
-            usd = uzs / rate_on(rates, start, last_rate) if start else uzs / last_rate
+            # сальдо займа берём по его собственной дате: и сумму, и курс
+            uzs = float(l.opening_uzs or 0) if opening_active(l.opening_date, end) else 0.0
+            base_day = l.opening_date or start
+            usd = uzs / rate_on(rates, base_day, last_rate) if base_day else uzs / last_rate
             for d, kind, amount in entries.get(l.id, []):
                 if end and d > end:
                     continue
@@ -923,6 +937,41 @@ async def fx_difference(
     }
 
 
+@router.get("/fx-difference/documents")
+async def fx_difference_documents(
+    year: int | None = None,
+    month: int | None = None,
+    _: User = Depends(require("reports:view")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Расшифровка курсовой разницы по задолженности — до каждого документа.
+
+    Строка «Дебиторская и кредиторская задолженность» сводного отчёта здесь
+    разложена: контрагент → его документы → вклад каждого в переоценку.
+    Сумма вкладов по контрагенту равна его курсовой разнице в ведомости Дт-Кт.
+
+    Деньги и займы сюда не входят: они переоцениваются не по документам,
+    а ежедневно (остаток) и по курсу на дату движения соответственно.
+    """
+    start, end = _period_bounds(year, month)
+    rates, last_rate = await _rate_map(db)
+    rate_end = rate_on(rates, end, last_rate) if end else last_rate
+    orgs = await org_fx_documents(db, start, end)
+    income = sum(o["fx"] for o in orgs if o["fx"] > 0)
+    loss = sum(-o["fx"] for o in orgs if o["fx"] < 0)
+    return {
+        "rate": rate_end,
+        "currency": "USD",
+        "orgs": orgs,
+        "totals": {
+            "income": round(income, 2),
+            "loss": round(loss, 2),
+            "net": round(income - loss, 2),
+            "docs": sum(len(o["docs"]) for o in orgs),
+        },
+    }
+
+
 # ================= Займы (лист «Займы») =================
 @router.get("/loans")
 async def loans_report(
@@ -956,7 +1005,8 @@ async def loans_report(
     tot = {k: 0.0 for k in ("open_debit", "open_credit", "turn_debit", "turn_credit",
                             "end_debit", "end_credit")}
     for l in loans:
-        opening = float(l.opening_uzs or 0) + before.get(l.id, 0.0)
+        live = opening_active(l.opening_date, end)
+        opening = (float(l.opening_uzs or 0) if live else 0.0) + before.get(l.id, 0.0)
         t = turn.get(l.id, {"debit": 0.0, "credit": 0.0})
         closing = opening + t["debit"] - t["credit"]
         d = {
@@ -1567,8 +1617,14 @@ async def daily_balance(
         + [{"key": f"bank{b.id}", "label": b.name, "kind": "bank"} for b in banks]
         + [{"key": "unassigned", "label": "Без счёта", "kind": "other"}]
     )
-    opening_col = {f"till{c.id}": float((c.opening_usd if usd else c.opening_uzs) or 0) for c in tills}
-    opening_col |= {f"bank{b.id}": float((b.opening_usd if usd else b.opening_uzs) or 0) for b in banks}
+    # остаток, зафиксированный позже начала периода, в стартовую колонку не идёт
+    def op(row) -> float:
+        if not opening_active(row.opening_date, start):
+            return 0.0
+        return float((row.opening_usd if usd else row.opening_uzs) or 0)
+
+    opening_col = {f"till{c.id}": op(c) for c in tills}
+    opening_col |= {f"bank{b.id}": op(b) for b in banks}
     opening_col["unassigned"] = 0.0
 
     # движения до начала периода уже входят в общий остаток на начало

@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
 from ..events import record
-from ..ledger import LEDGERS
+from ..ledger import LEDGERS, OPENING_DATE_REQUIRED
 from ..models import (
     BankAccount,
     CashRegister,
@@ -326,6 +326,13 @@ async def list_bank_accounts(
     return res.scalars().all()
 
 
+def _check_opening_date(row) -> None:
+    """Входящий остаток без даты не принимаем — см. OPENING_DATE_REQUIRED."""
+    has_opening = float(row.opening_uzs or 0) or float(getattr(row, "opening_usd", 0) or 0)
+    if has_opening and not row.opening_date:
+        raise HTTPException(400, detail=OPENING_DATE_REQUIRED)
+
+
 @router.post("/bank-accounts", response_model=BankAccountOut, status_code=201)
 async def create_bank_account(
     body: BankAccountBase,
@@ -333,6 +340,7 @@ async def create_bank_account(
     db: AsyncSession = Depends(get_db),
 ):
     row = BankAccount(**body.model_dump())
+    _check_opening_date(row)
     db.add(row)
     await db.commit()
     await db.refresh(row)
@@ -352,6 +360,7 @@ async def update_bank_account(
         raise HTTPException(404, detail="Счёт не найден")
     for k, v in body.model_dump(exclude_unset=True).items():
         setattr(row, k, v)
+    _check_opening_date(row)
     await db.commit()
     await db.refresh(row)
     await record(db, current, "edit", "bank_account", row.name)
@@ -394,6 +403,7 @@ async def create_cash_register(
     db: AsyncSession = Depends(get_db),
 ):
     row = CashRegister(**body.model_dump())
+    _check_opening_date(row)
     db.add(row)
     await db.commit()
     await db.refresh(row)
@@ -413,6 +423,7 @@ async def update_cash_register(
         raise HTTPException(404, detail="Касса не найдена")
     for k, v in body.model_dump(exclude_unset=True).items():
         setattr(row, k, v)
+    _check_opening_date(row)
     await db.commit()
     await db.refresh(row)
     await record(db, current, "edit", "cash_register", row.name)

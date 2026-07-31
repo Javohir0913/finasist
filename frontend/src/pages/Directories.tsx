@@ -52,8 +52,13 @@ export default function Directories() {
   );
 }
 
+/** Остаток введён, а дата — нет: такой остаток учесть нельзя. */
+export const openingDateMissing = (form: any) =>
+  !!(Number(form.opening_uzs || 0) || Number(form.opening_usd || 0)) && !form.opening_date;
+
 /**
- * Пара полей «сум ↔ USD»: заполняем любое, второе считается по курсу.
+ * Пара полей «сум ↔ USD» и дата остатка: заполняем любую сумму, вторая
+ * считается по курсу; дата говорит, НА какой момент остаток зафиксирован.
  *
  * В книге лист «ОСТАТОК USD» не заполняется руками — каждая его ячейка это
  * «ОСТАТОК UZS» ÷ «Курс доллара» на ту же дату. Поэтому для денег сум и
@@ -69,6 +74,7 @@ function OpeningPair({ form, setForm, rate }: {
       ? { ...form, opening_uzs: n, opening_usd: toUsd(n, rate) }
       : { ...form, opening_usd: n, opening_uzs: toUzs(n, rate) });
   };
+  const dateMissing = openingDateMissing(form);
   return (
     <>
       <Field label="Остаток на начало, сум">
@@ -76,6 +82,15 @@ function OpeningPair({ form, setForm, rate }: {
       </Field>
       <Field label={rate ? "…он же в USD (по курсу)" : "Остаток на начало, USD"}>
         <MoneyInput value={form.opening_usd} onChange={(v) => set("opening_usd", v)} />
+      </Field>
+      <Field label="Дата остатка *">
+        <input type="date" className="input" value={form.opening_date || ""}
+          onChange={(e) => setForm({ ...form, opening_date: e.target.value })} />
+        {dateMissing && (
+          <p className="mt-1 text-xs text-amber-300">
+            Обязательно: на какую дату зафиксирован остаток
+          </p>
+        )}
       </Field>
     </>
   );
@@ -105,7 +120,7 @@ function RateNote({ rate, date }: { rate: number; date: string }) {
 function BankAccounts({ canEdit, canDel }: { canEdit: boolean; canDel: boolean }) {
   const { data, loading, reload } = useApi<Bank[]>("/bank-accounts");
   const { rate, date } = useOpeningRate();
-  const empty = { name: "", account_no: "", bank_name: "", mfo: "", currency: "UZS", opening_uzs: 0, opening_usd: 0 };
+  const empty = { name: "", account_no: "", bank_name: "", mfo: "", currency: "UZS", opening_uzs: 0, opening_usd: 0, opening_date: "" };
   const [form, setForm] = useState<any>(empty);
   const [edit, setEdit] = useState<number | null>(null);
   const [err, setErr] = useState("");
@@ -136,7 +151,9 @@ function BankAccounts({ canEdit, canDel }: { canEdit: boolean; canDel: boolean }
             <Field label="МФО"><input className="input" value={form.mfo} onChange={(e) => setForm({ ...form, mfo: e.target.value })} /></Field>
             <OpeningPair form={form} setForm={setForm} rate={rate} />
             <div className="flex items-end gap-2">
-              <button className="btn-primary" onClick={save} disabled={!form.name}>{edit ? "Сохранить" : "+ Добавить"}</button>
+              <button className="btn-primary" onClick={save}
+                disabled={!form.name || openingDateMissing(form)}
+                title={openingDateMissing(form) ? "Укажите дату остатка" : undefined}>{edit ? "Сохранить" : "+ Добавить"}</button>
               {edit && <button className="btn-ghost" onClick={() => { setForm(empty); setEdit(null); }}>Отмена</button>}
             </div>
           </div>
@@ -181,7 +198,7 @@ function CashRegisters({ canEdit, canDel }: { canEdit: boolean; canDel: boolean 
   const { data, loading, reload } = useApi<Till[]>("/cash-registers");
   const { data: divs } = useApi<Div[]>("/divisions");
   const { rate, date } = useOpeningRate();
-  const empty = { name: "", division: "", currency: "UZS", opening_uzs: 0, opening_usd: 0 };
+  const empty = { name: "", division: "", currency: "UZS", opening_uzs: 0, opening_usd: 0, opening_date: "" };
   const [form, setForm] = useState<any>(empty);
   const [edit, setEdit] = useState<number | null>(null);
   const [err, setErr] = useState("");
@@ -215,7 +232,9 @@ function CashRegisters({ canEdit, canDel }: { canEdit: boolean; canDel: boolean 
             </Field>
             <OpeningPair form={form} setForm={setForm} rate={rate} />
             <div className="flex items-end gap-2">
-              <button className="btn-primary" onClick={save} disabled={!form.name}>{edit ? "Сохранить" : "+ Добавить"}</button>
+              <button className="btn-primary" onClick={save}
+                disabled={!form.name || openingDateMissing(form)}
+                title={openingDateMissing(form) ? "Укажите дату остатка" : undefined}>{edit ? "Сохранить" : "+ Добавить"}</button>
               {edit && <button className="btn-ghost" onClick={() => { setForm(empty); setEdit(null); }}>Отмена</button>}
             </div>
           </div>

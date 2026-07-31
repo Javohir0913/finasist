@@ -7,7 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
 from ..events import record
+from ..ledger import OPENING_DATE_REQUIRED
 from ..models import AuditLog, ExchangeRate, Loan, LoanEntry, Tax, User
+from ..rates import TAX_DATE_REQUIRED, is_auto_tax
 from ..schemas import (
     AuditOut,
     LoanBase,
@@ -82,6 +84,18 @@ async def list_taxes(_: User = Depends(require("taxes:view")), db: AsyncSession 
     return result.scalars().all()
 
 
+def _check_tax_date(t: Tax) -> None:
+    """Ручному налогу нужна дата начисления — см. TAX_DATE_REQUIRED.
+
+    Авто-налоги дату не требуют: их начисление приходит из первичных
+    документов и уже привязано к их датам.
+    """
+    if is_auto_tax(t.name):
+        return
+    if (float(t.accrued or 0) or float(t.debt_start or 0)) and not t.accrued_date:
+        raise HTTPException(400, detail=TAX_DATE_REQUIRED)
+
+
 @router.post("/taxes", response_model=TaxOut, status_code=201)
 async def create_tax(
     body: TaxBase,
@@ -89,6 +103,7 @@ async def create_tax(
     db: AsyncSession = Depends(get_db),
 ):
     t = Tax(**body.model_dump())
+    _check_tax_date(t)
     t.debt_end = round(float(t.debt_start or 0) + float(t.accrued or 0) - float(t.paid or 0), 2)
     db.add(t)
     await db.commit()
@@ -109,6 +124,7 @@ async def update_tax(
         raise HTTPException(status_code=404, detail="Налог не найден")
     for k, v in body.model_dump(exclude_unset=True).items():
         setattr(t, k, v)
+    _check_tax_date(t)
     t.debt_end = round(float(t.debt_start or 0) + float(t.accrued or 0) - float(t.paid or 0), 2)
     await db.commit()
     await db.refresh(t)
@@ -150,6 +166,12 @@ async def list_loans(_: User = Depends(require("loans:view")), db: AsyncSession 
     return result.scalars().all()
 
 
+def _check_loan_opening(ln: Loan) -> None:
+    """Входящее сальдо займа без даты не принимаем — см. OPENING_DATE_REQUIRED."""
+    if float(ln.opening_uzs or 0) and not ln.opening_date:
+        raise HTTPException(400, detail=OPENING_DATE_REQUIRED)
+
+
 @router.post("/loans", response_model=LoanOut, status_code=201)
 async def create_loan(
     body: LoanBase,
@@ -157,6 +179,7 @@ async def create_loan(
     db: AsyncSession = Depends(get_db),
 ):
     ln = Loan(**body.model_dump())
+    _check_loan_opening(ln)
     db.add(ln)
     await db.flush()
     await _recompute_loan(db, ln.id)
@@ -178,6 +201,7 @@ async def update_loan(
         raise HTTPException(status_code=404, detail="Займ не найден")
     for k, v in body.model_dump(exclude_unset=True).items():
         setattr(ln, k, v)
+    _check_loan_opening(ln)
     await db.flush()
     await _recompute_loan(db, lid)
     await db.commit()

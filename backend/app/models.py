@@ -71,7 +71,14 @@ class Organization(Base):
     phone: Mapped[str] = mapped_column(String(60), default="")
     # входящее сальдо на дату начала учёта (+ дебет / − кредит)
     opening_uzs: Mapped[float] = mapped_column(Numeric(20, 2), default=0)
+    # валютная база сальдо — сервер считает её как opening_uzs / opening_rate
     opening_usd: Mapped[float] = mapped_column(Numeric(18, 2), default=0)
+    # курс, по которому сальдо зафиксировано в валюте. Работает ТОЛЬКО для
+    # входящего сальдо: документы берут курс на свою собственную дату.
+    opening_rate: Mapped[float] = mapped_column(Numeric(18, 2), default=0)
+    # дата, НА которую зафиксировано сальдо: по ней берётся курс и до неё
+    # сальдо в отчёты не попадает
+    opening_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     # running balances (positive = they owe us / debit)
     balance_usd: Mapped[float] = mapped_column(Numeric(18, 2), default=0)
     balance_uzs: Mapped[float] = mapped_column(Numeric(18, 2), default=0)
@@ -91,6 +98,8 @@ class BankAccount(Base):
     currency: Mapped[str] = mapped_column(String(3), default="UZS")
     opening_uzs: Mapped[float] = mapped_column(Numeric(20, 2), default=0)
     opening_usd: Mapped[float] = mapped_column(Numeric(18, 2), default=0)
+    # дата, на которую зафиксирован входящий остаток
+    opening_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
@@ -105,6 +114,8 @@ class CashRegister(Base):
     currency: Mapped[str] = mapped_column(String(3), default="UZS")
     opening_uzs: Mapped[float] = mapped_column(Numeric(20, 2), default=0)
     opening_usd: Mapped[float] = mapped_column(Numeric(18, 2), default=0)
+    # дата, на которую зафиксирован входящий остаток
+    opening_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
@@ -260,6 +271,9 @@ class Tax(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(160))
     period: Mapped[str] = mapped_column(String(20), default="")
+    # дата начисления — обязательна для налогов, которые вводятся руками.
+    # Авто-налоги (НДС, НДФЛ, ЕСП, ИНПС) берут дату из первичных документов.
+    accrued_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     debt_start: Mapped[float] = mapped_column(Numeric(18, 2), default=0)
     accrued: Mapped[float] = mapped_column(Numeric(18, 2), default=0)
     paid: Mapped[float] = mapped_column(Numeric(18, 2), default=0)
@@ -280,6 +294,8 @@ class Loan(Base):
     principal: Mapped[float] = mapped_column(Numeric(18, 2), default=0)
     # входящее сальдо на дату начала учёта (+ дебет = нам должны, − кредит = мы должны)
     opening_uzs: Mapped[float] = mapped_column(Numeric(20, 2), default=0)
+    # дата, на которую зафиксировано входящее сальдо займа
+    opening_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     balance: Mapped[float] = mapped_column(Numeric(18, 2), default=0)
     note: Mapped[str] = mapped_column(String(255), default="")
 

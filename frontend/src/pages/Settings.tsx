@@ -1,10 +1,14 @@
 import { useEffect, useState } from "react";
 import api, { apiError } from "../api/client";
-import { Card, SectionTitle, Spinner } from "../components/ui";
+import { Card, MoneyInput, SectionTitle, Spinner } from "../components/ui";
 import { useApi } from "../lib/useApi";
 import { useAuth } from "../store/auth";
 
 interface S { key: string; value: string; label: string; group: string; kind: string }
+
+// текстовая настройка, которая на самом деле дата («Дата начала учёта»)
+const isDate = (s: S) =>
+  s.key === "period_start" || s.key.endsWith("_date") || /^\d{4}-\d{2}-\d{2}$/.test(s.value || "");
 
 export default function Settings() {
   const { user } = useAuth();
@@ -52,14 +56,25 @@ export default function Settings() {
               <div key={s.key} className="flex items-end gap-2">
                 <div className="flex-1">
                   <label className="label">{s.label}{s.kind === "percent" && " (%)"}</label>
-                  <input
-                    className="input"
-                    type={s.kind === "text" ? "text" : "number"}
-                    step={s.kind === "text" ? undefined : "0.01"}
-                    disabled={!editable}
-                    value={vals[s.key] ?? ""}
-                    onChange={(e) => setVals({ ...vals, [s.key]: e.target.value })}
-                  />
+                  {/* Числа и проценты — через MoneyInput: разряды по 3, запятая
+                      как десятичный разделитель, а «e» и знаки не вводятся.
+                      У штатного type="number" ввод «e» обнулял поле. */}
+                  {s.kind === "text" ? (
+                    <input
+                      className="input"
+                      type={isDate(s) ? "date" : "text"}
+                      disabled={!editable}
+                      value={vals[s.key] ?? ""}
+                      onChange={(e) => setVals({ ...vals, [s.key]: e.target.value })}
+                    />
+                  ) : (
+                    <MoneyInput
+                      disabled={!editable}
+                      decimals={s.kind === "percent" ? 4 : 2}
+                      value={vals[s.key] ?? ""}
+                      onChange={(v) => setVals({ ...vals, [s.key]: v })}
+                    />
+                  )}
                 </div>
                 {editable && (
                   <button className="btn-primary !px-4" onClick={() => save(s)} disabled={saving === s.key}>

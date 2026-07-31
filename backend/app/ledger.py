@@ -32,9 +32,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .models import (
     Employee,
     ExchangeRate,
+    Material,
     MaterialReceipt,
     Organization,
     PayrollEntry,
+    Product,
     Sale,
     Service,
     Transaction,
@@ -54,6 +56,26 @@ LEDGERS = [
     ("other", "Прочие"),
 ]
 LEDGER_KEYS = {k for k, _ in LEDGERS}
+
+# Входящее сальдо без даты нельзя учесть: непонятно, с какого момента оно
+# существует и по какому курсу переведено в валюту. Поэтому дата обязательна
+# везде, где вводится начальный остаток (контрагенты, счета, кассы, займы).
+OPENING_DATE_REQUIRED = (
+    "Укажите дату входящего сальдо — на какую дату зафиксирован остаток. "
+    "Без даты его нельзя корректно учесть в отчётах."
+)
+
+
+def opening_active(opening_date, end) -> bool:
+    """Существует ли входящее сальдо на конец отчётного периода.
+
+    Сальдо, зафиксированное ПОЗЖЕ конца периода, в этот период не попадает.
+    Старые записи без даты считаем действующими всегда — иначе отчёты
+    обнулились бы до того, как бухгалтер проставит даты.
+    """
+    if end is None or opening_date is None:
+        return True
+    return opening_date <= end
 
 
 async def _rate_map(db: AsyncSession) -> tuple[dict[date, float], float]:
@@ -186,6 +208,149 @@ async def org_movements(
         mv.add(oid, d, amount, usd_of(d, amount), "credit", start, end)
 
     return mv
+
+
+async def org_fx_documents(
+    db: AsyncSession, start: date | None = None, end: date | None = None
+) -> list[dict]:
+    """Курсовая разница в разрезе КАЖДОГО документа контрагента.
+
+    Переоценка сальдо линейна по документам:
+
+        fx(контрагент) = сальдо_UZS / курс_на_конец − накопленный_USD
+                       = Σ (сумма_док / курс_на_конец − USD_док)
+
+    поэтому вклад отдельного документа считается той же формулой, а сумма
+    вкладов (вместе с входящим сальдо) в точности равна строке контрагента
+    в ведомости Дт-Кт. Знак: дебет «+», кредит «−», как в `org_movements`.
+
+    В расчёт входят ВСЕ документы по дату `end` включительно — сальдо на конец
+    периода складывается из всей истории, а не только из оборотов периода.
+    `start` не отсекает документы, а лишь помечает их `in_period`.
+    """
+    rates, last_rate = await _rate_map(db)
+    nds = (await get_rates(db))["nds_rate"]
+    rate_end = rate_on(rates, end, last_rate) if end else last_rate
+
+    def usd_of(d: date, uzs: float) -> float:
+        r = rates.get(d, last_rate) or 1.0
+        return uzs / r
+
+    docs: dict[int, list[dict]] = {}
+
+    def add(oid, d: date, uzs: float, usd: float, side: str, kind: str, label: str):
+        if not oid or (end and d > end) or (not uzs and not usd):
+            return
+        sign = 1.0 if side == "debit" else -1.0
+        # суммы держим НЕокруглёнными: сальдо считается по ним, иначе
+        # построчные округления дают расхождение со сводным отчётом
+        docs.setdefault(oid, []).append({
+            "date": d.isoformat(),
+            "kind": kind,
+            "label": label,
+            "side": side,
+            "_uzs": sign * uzs,
+            "_usd": sign * usd,
+            "in_period": not ((start and d < start) or (end and d > end)),
+        })
+
+    # --- деньги: берём сохранённый amount_usd, как и в org_movements ---
+    for oid, d, direction, uzs, usd, cat, descr, tid in (
+        await db.execute(
+            select(
+                Transaction.organization_id, Transaction.doc_date, Transaction.direction,
+                Transaction.amount_uzs, Transaction.amount_usd,
+                Transaction.category, Transaction.description, Transaction.id,
+            ).where(Transaction.organization_id.isnot(None))
+        )
+    ).all():
+        side = "debit" if direction == "expense" else "credit"
+        name = (cat or "").strip() or (descr or "").strip() or f"Операция №{tid}"
+        add(oid, d, float(uzs or 0), float(usd or 0), side,
+            "Банк / Касса" if direction == "expense" else "Поступление денег", name)
+
+    # --- приход ТМЦ: кредиторка перед поставщиком, сумма с НДС ---
+    for oid, d, qty, price, vat, mname in (
+        await db.execute(
+            select(
+                MaterialReceipt.organization_id, MaterialReceipt.doc_date,
+                MaterialReceipt.qty, MaterialReceipt.price_uzs, MaterialReceipt.vat,
+                Material.name,
+            )
+            .join(Material, Material.id == MaterialReceipt.material_id, isouter=True)
+            .where(MaterialReceipt.organization_id.isnot(None))
+        )
+    ).all():
+        gross = float(qty or 0) * float(price or 0) * ((1 + nds) if vat else 1)
+        add(oid, d, gross, usd_of(d, gross), "credit", "Приход ТМЦ", mname or "—")
+
+    # --- отгрузка ГП: дебиторка покупателя ---
+    for oid, d, qty, price, pname in (
+        await db.execute(
+            select(Sale.organization_id, Sale.doc_date, Sale.qty, Sale.price_uzs, Product.name)
+            .join(Product, Product.id == Sale.product_id, isouter=True)
+            .where(Sale.organization_id.isnot(None))
+        )
+    ).all():
+        gross = float(qty or 0) * float(price or 0)
+        add(oid, d, gross, usd_of(d, gross), "debit", "Отгрузка ГП", pname or "—")
+
+    # --- услуги ---
+    for oid, d, direction, amount, stype in (
+        await db.execute(
+            select(Service.organization_id, Service.doc_date, Service.direction,
+                   Service.amount, Service.service_type)
+            .where(Service.organization_id.isnot(None))
+        )
+    ).all():
+        amt = float(amount or 0)
+        side = "debit" if direction == "provided" else "credit"
+        kind = "Оказанные услуги" if direction == "provided" else "Полученные услуги"
+        add(oid, d, amt, usd_of(d, amt), side, kind, (stype or "").strip() or "—")
+
+    # --- начисленная зарплата ---
+    for oid, d, amount in await _payroll_accruals(db):
+        add(oid, d, amount, usd_of(d, amount), "credit",
+            "Начисление зарплаты", f"Зарплата за {d.strftime('%m.%Y')}")
+
+    # --- собираем по контрагентам, добавляя входящее сальдо отдельной строкой ---
+    orgs = (await db.execute(select(Organization).order_by(Organization.name))).scalars().all()
+    out: list[dict] = []
+    for o in orgs:
+        rows = sorted(docs.get(o.id, []), key=lambda r: (r["date"], r["kind"]))
+        live = opening_active(o.opening_date, end)
+        op_uzs = float(o.opening_uzs or 0) if live else 0.0
+        op_usd = float(o.opening_usd or 0) if live else 0.0
+        if op_uzs or op_usd:
+            rows.insert(0, {
+                "date": o.opening_date.isoformat() if o.opening_date else None,
+                "kind": "Входящее сальдо",
+                "label": (f"Сальдо на {o.opening_date.strftime('%d.%m.%Y')}"
+                          if o.opening_date else "На начало учёта (дата не указана)"),
+                "side": "debit" if op_uzs >= 0 else "credit",
+                "_uzs": op_uzs, "_usd": op_usd, "in_period": False,
+            })
+        if not rows:
+            continue
+        closing = sum(r["_uzs"] for r in rows)
+        closing_usd = sum(r["_usd"] for r in rows)
+        # итог по контрагенту считаем той же функцией, что и ведомость Дт-Кт
+        fx = fx_of(closing, closing_usd, rate_end)
+        for r in rows:
+            uzs, usd = r.pop("_uzs"), r.pop("_usd")
+            r["uzs"] = round(uzs, 2)
+            r["usd"] = round(usd, 2)
+            # курс, по которому документ лёг в валютную базу
+            r["rate_doc"] = round(uzs / usd, 2) if usd else 0.0
+            r["fx"] = round(uzs / rate_end - usd, 2) if rate_end else 0.0
+        out.append({
+            "id": o.id, "name": o.name, "inn": o.inn, "ledger": o.ledger,
+            "closing_uzs": round(closing, 2), "closing_usd": round(closing_usd, 2),
+            "fx": fx, "kind": "income" if fx >= 0 else "loss",
+            "docs": rows,
+        })
+    out.sort(key=lambda r: abs(r["fx"]), reverse=True)
+    return out
 
 
 async def salary_org_by_division(db: AsyncSession) -> dict[str, int]:
@@ -355,8 +520,10 @@ async def ledger_rows(
         "end_debit_usd", "end_credit_usd", "revalued_usd", "fx_income", "fx_loss",
     )}
     for o in orgs:
-        opening = float(o.opening_uzs or 0) + mv.before.get(o.id, 0.0)
-        opening_usd = float(o.opening_usd or 0) + mv.before_usd.get(o.id, 0.0)
+        # сальдо, зафиксированное позже конца периода, в него не входит
+        live = opening_active(o.opening_date, end)
+        opening = (float(o.opening_uzs or 0) if live else 0.0) + mv.before.get(o.id, 0.0)
+        opening_usd = (float(o.opening_usd or 0) if live else 0.0) + mv.before_usd.get(o.id, 0.0)
         td, tc = mv.debit.get(o.id, 0.0), mv.credit.get(o.id, 0.0)
         td_u, tc_u = mv.debit_usd.get(o.id, 0.0), mv.credit_usd.get(o.id, 0.0)
         closing = opening + td - tc
@@ -397,8 +564,14 @@ async def cash_opening(
     С `division` считается денежная позиция подразделения: входящие остатки
     берутся только у КАСС этого объекта (банковские счета к подразделениям не
     привязаны — они общефирменные), а движения — только помеченные объектом.
+
+    Остаток, зафиксированный ПОЗЖЕ даты `before`, в этот расчёт не входит:
+    на тот момент его ещё не существовало.
     """
     from .models import BankAccount, CashRegister  # локально, чтобы избежать циклов
+
+    def opened(rows):
+        return [r for r in rows if opening_active(r.opening_date, before)]
 
     if division:
         bank_uzs = bank_usd = 0.0
@@ -406,10 +579,11 @@ async def cash_opening(
             await db.execute(select(CashRegister).where(CashRegister.division == division))
         ).scalars().all()
     else:
-        banks = (await db.execute(select(BankAccount))).scalars().all()
+        banks = opened((await db.execute(select(BankAccount))).scalars().all())
         bank_uzs = sum(float(b.opening_uzs or 0) for b in banks)
         bank_usd = sum(float(b.opening_usd or 0) for b in banks)
         tills = (await db.execute(select(CashRegister))).scalars().all()
+    tills = opened(tills)
     kassa_uzs = sum(float(c.opening_uzs or 0) for c in tills)
     kassa_usd = sum(float(c.opening_usd or 0) for c in tills)
 

@@ -8,7 +8,8 @@ import { useAuth } from "../store/auth";
 
 interface L {
   id: number; counterparty: string; direction: string; currency: string;
-  principal: number; opening_uzs: number; balance: number; note: string;
+  principal: number; opening_uzs: number; opening_date: string | null;
+  balance: number; note: string;
 }
 interface Entry {
   id: number; loan_id: number; doc_date: string; kind: string; amount_uzs: number; note: string;
@@ -19,12 +20,18 @@ export default function Loans() {
   const { data, loading, reload } = useApi<L[]>("/loans");
   const [open, setOpen] = useState(false); const [editing, setEditing] = useState<L | null>(null);
   const [moves, setMoves] = useState<L | null>(null);
-  const empty = { counterparty: "", direction: "received", currency: "UZS", principal: 0, opening_uzs: 0, note: "" };
+  const empty = { counterparty: "", direction: "received", currency: "UZS", principal: 0, opening_uzs: 0, opening_date: "", note: "" };
   const [form, setForm] = useState<any>(empty); const [err, setErr] = useState(""); const [saving, setSaving] = useState(false);
+  // входящее сальдо без даты учесть нельзя — непонятно, с какого момента оно есть
+  const dateMissing = !!Number(form.opening_uzs || 0) && !form.opening_date;
 
   const save = async () => {
+    if (dateMissing) return;
     setErr(""); setSaving(true);
-    const body = { ...form, principal: Number(form.principal), opening_uzs: Number(form.opening_uzs) };
+    const body = {
+      ...form, principal: Number(form.principal), opening_uzs: Number(form.opening_uzs),
+      opening_date: form.opening_date || null,
+    };
     delete body.balance;  // сальдо считает сервер из движений
     try { if (editing) await api.put(`/loans/${editing.id}`, body); else await api.post("/loans", body); setOpen(false); reload(); }
     catch (e) { setErr(apiError(e)); } finally { setSaving(false); }
@@ -104,12 +111,22 @@ export default function Loans() {
           <Field label="Валюта"><select className="input" value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })}><option>UZS</option><option>USD</option></select></Field>
           <Field label="Сумма договора"><MoneyInput value={form.principal} onChange={(v) => setForm({ ...form, principal: v })} /></Field>
           <Field label="Входящее сальдо"><MoneyInput value={form.opening_uzs} onChange={(v) => setForm({ ...form, opening_uzs: v })} /></Field>
+          <Field label="Дата сальдо *">
+            <input type="date" className="input" value={form.opening_date || ""}
+              onChange={(e) => setForm({ ...form, opening_date: e.target.value })} />
+            {dateMissing && (
+              <p className="mt-1 text-xs text-amber-300">
+                Обязательно: на какую дату зафиксировано сальдо
+              </p>
+            )}
+          </Field>
           <div className="col-span-2"><Field label="Примечание"><input className="input" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} /></Field></div>
           <p className="col-span-2 text-xs text-slate-500">
             Остаток рассчитывается автоматически: входящее сальдо + выдачи − погашения (вкладка «Движения по займу»).
           </p>
         </div>
-        <div className="flex justify-end gap-2 mt-6"><button className="btn-ghost" onClick={() => setOpen(false)}>Отмена</button><button className="btn-primary" onClick={save} disabled={saving || !form.counterparty}>Сохранить</button></div>
+        <div className="flex justify-end gap-2 mt-6"><button className="btn-ghost" onClick={() => setOpen(false)}>Отмена</button><button className="btn-primary" onClick={save} disabled={saving || !form.counterparty || dateMissing}
+          title={dateMissing ? "Укажите дату входящего сальдо" : undefined}>Сохранить</button></div>
       </Modal>
 
       {moves && <LoanMoves loan={moves} onClose={() => { setMoves(null); reload(); }} />}

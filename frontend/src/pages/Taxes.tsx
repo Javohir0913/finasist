@@ -1,22 +1,35 @@
 import { useState } from "react";
 import api, { apiError } from "../api/client";
 import { Badge, Card, EmptyState, Field, Modal, MoneyInput, SectionTitle, Spinner } from "../components/ui";
-import { fmtNum } from "../lib/format";
+import { fmtDate, fmtNum } from "../lib/format";
 import { useApi } from "../lib/useApi";
 import { useAuth } from "../store/auth";
 
-interface TRow { id: number; name: string; debt_start: number; accrued: number; auto: boolean; paid: number; debt_end: number; overpay: number }
+interface TRow { id: number; name: string; debt_start: number; accrued: number; auto: boolean; paid: number; debt_end: number; overpay: number; accrued_date: string | null }
+
+// НДС и зарплатные налоги считаются из документов — дата берётся оттуда;
+// остальные вводятся руками, и без даты попадали бы в каждый период
+const AUTO = ["ндс", "ндфл", "есп", "инпс"];
+const isAuto = (name: string) => AUTO.some((k) => (name || "").toLowerCase().includes(k));
 
 export default function Taxes() {
   const { can } = useAuth();
   const { data, loading, reload } = useApi<{ rows: TRow[]; totals: any }>("/reports/taxes");
   const [open, setOpen] = useState(false); const [editing, setEditing] = useState<TRow | null>(null);
-  const empty = { name: "", period: "", debt_start: 0, accrued: 0, paid: 0 };
+  const empty = { name: "", period: "", accrued_date: "", debt_start: 0, accrued: 0, paid: 0 };
   const [form, setForm] = useState<any>(empty); const [err, setErr] = useState(""); const [saving, setSaving] = useState(false);
+  const manual = !isAuto(form.name);
+  const dateMissing = manual
+    && !!(Number(form.accrued || 0) || Number(form.debt_start || 0))
+    && !form.accrued_date;
 
   const save = async () => {
+    if (dateMissing) return;
     setErr(""); setSaving(true);
-    const body = { ...form, debt_start: Number(form.debt_start), accrued: Number(form.accrued), paid: Number(form.paid) };
+    const body = {
+      ...form, debt_start: Number(form.debt_start), accrued: Number(form.accrued),
+      paid: Number(form.paid), accrued_date: form.accrued_date || null,
+    };
     try { if (editing) await api.put(`/taxes/${editing.id}`, body); else await api.post("/taxes", body); setOpen(false); reload(); }
     catch (e) { setErr(apiError(e)); } finally { setSaving(false); }
   };
@@ -35,12 +48,19 @@ export default function Taxes() {
                 <tr key={t.id} className="hover:bg-white/[0.02]">
                   <td className="td font-medium text-white">{t.name}</td>
                   <td className="td text-right">{fmtNum(t.debt_start)}</td>
-                  <td className="td text-right text-amber-300">{fmtNum(t.accrued)} {t.auto && <Badge tone="emerald">авто</Badge>}</td>
+                  <td className="td text-right text-amber-300">
+                    {fmtNum(t.accrued)}{" "}
+                    {t.auto
+                      ? <Badge tone="emerald">авто</Badge>
+                      : t.accrued_date
+                        ? <span className="text-xs text-slate-500">{fmtDate(t.accrued_date)}</span>
+                        : <span className="text-xs text-amber-300">без даты</span>}
+                  </td>
                   <td className="td text-right text-emerald-300">{fmtNum(t.paid)}</td>
                   <td className="td text-right font-semibold text-white">{fmtNum(t.debt_end)}</td>
                   <td className="td text-right text-slate-400">{t.overpay ? fmtNum(t.overpay) : "—"}</td>
                   <td className="td text-right whitespace-nowrap">
-                    {can("taxes:edit") && <button onClick={() => { setEditing(t); setForm({ name: t.name, period: "", debt_start: t.debt_start, accrued: t.accrued, paid: t.paid }); setErr(""); setOpen(true); }} className="text-slate-500 hover:text-accent-soft mr-3">✎</button>}
+                    {can("taxes:edit") && <button onClick={() => { setEditing(t); setForm({ name: t.name, period: "", accrued_date: t.accrued_date || "", debt_start: t.debt_start, accrued: t.accrued, paid: t.paid }); setErr(""); setOpen(true); }} className="text-slate-500 hover:text-accent-soft mr-3">✎</button>}
                     {can("taxes:delete") && <button onClick={() => remove(t.id)} className="text-slate-500 hover:text-rose-300">✕</button>}
                   </td>
                 </tr>
@@ -58,7 +78,12 @@ export default function Taxes() {
         )}
       </Card>
       <p className="text-xs text-slate-500 mt-3">
-        «авто» — начислено считается автоматически: <b>НДС</b> = НДС с продаж − НДС с покупок; <b>НДФЛ/ЕСП/ИНПС</b> — из зарплаты; <b>Налог на прибыль</b> = 15% прибыли. Оплачено берётся из операций по кодам (94321 НДС, 94319 прибыль и т.д.). «Долг на начало» вводится вручную (кнопка ✎).
+        «авто» — начислено считается само и уже разложено по датам первичных документов:
+        <b> НДС</b> = НДС с продаж − НДС с покупок (по дате продажи / услуги / прихода ТМЦ);
+        <b> НДФЛ/ЕСП/ИНПС</b> — из ведомости зарплаты за её месяц.
+        Остальные налоги (прибыль, земельный, прочие) вводятся вручную, и им нужна
+        <b> дата начисления</b> — сумма попадёт только в тот период, куда входит эта дата.
+        «Оплачено» всегда берётся из операций по кодам (94321 НДС, 94319 прибыль и т.д.) — по дате платежа.
       </p>
       <Modal open={open} onClose={() => setOpen(false)} title={editing ? "Налог: остаток и ручные значения" : "Новый налог"}>
         {err && <div className="mb-4 rounded-xl bg-rose-500/12 border border-rose-500/25 text-rose-300 text-sm px-3.5 py-2.5">{err}</div>}
@@ -66,9 +91,31 @@ export default function Taxes() {
           <div className="col-span-2"><Field label="Наименование налога"><input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} disabled={!!editing} /></Field></div>
           <Field label="Долг на начало"><MoneyInput value={form.debt_start} onChange={(v) => setForm({ ...form, debt_start: v })} /></Field>
           <Field label="Начислено (для ручных налогов)"><MoneyInput value={form.accrued} onChange={(v) => setForm({ ...form, accrued: v })} /></Field>
+          {manual && (
+            <div className="col-span-2">
+              <Field label="Дата начисления *">
+                <input type="date" className="input" value={form.accrued_date || ""}
+                  onChange={(e) => setForm({ ...form, accrued_date: e.target.value })} />
+                {dateMissing ? (
+                  <p className="mt-1 text-xs text-amber-300">
+                    Обязательно: без даты налог попадёт в каждый период отчёта
+                  </p>
+                ) : (
+                  <p className="mt-1 text-xs text-slate-500">
+                    сумма попадёт только в тот период, куда входит эта дата
+                  </p>
+                )}
+              </Field>
+            </div>
+          )}
         </div>
-        <p className="text-xs text-slate-500 mt-3">Для НДС, зарплатных налогов и налога на прибыль «начислено» считается автоматически — ручное значение используется только для прочих налогов (земельный и т.п.).</p>
-        <div className="flex justify-end gap-2 mt-6"><button className="btn-ghost" onClick={() => setOpen(false)}>Отмена</button><button className="btn-primary" onClick={save} disabled={saving || !form.name}>Сохранить</button></div>
+        <p className="text-xs text-slate-500 mt-3">
+          {manual
+            ? "Ручной налог: и «начислено», и «долг на начало» учитываются по указанной дате."
+            : "Этот налог считается автоматически — начисление и его дата берутся из первичных документов (продажи, услуги, приход ТМЦ, ведомость зарплаты). Дата вручную не нужна."}
+        </p>
+        <div className="flex justify-end gap-2 mt-6"><button className="btn-ghost" onClick={() => setOpen(false)}>Отмена</button><button className="btn-primary" onClick={save} disabled={saving || !form.name || dateMissing}
+          title={dateMissing ? "Укажите дату начисления" : undefined}>Сохранить</button></div>
       </Modal>
     </div>
   );
