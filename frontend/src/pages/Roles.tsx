@@ -50,7 +50,7 @@ export default function Roles() {
               <div className="flex items-start justify-between">
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="font-semibold text-white">{r.name}</h3>
+                    <h3 className="font-semibold text-ink">{r.name}</h3>
                     {r.is_system && <Badge tone="violet">Системная</Badge>}
                   </div>
                   <p className="text-sm text-slate-400 mt-1">{r.description || "—"}</p>
@@ -61,7 +61,7 @@ export default function Roles() {
                 </div>
               </div>
               <div className="mt-4 flex items-center gap-2">
-                <div className="text-2xl font-bold text-white">{r.permissions.length}</div>
+                <div className="text-2xl font-bold text-ink">{r.permissions.length}</div>
                 <div className="text-xs text-slate-500 leading-tight">назначенных<br />прав</div>
               </div>
             </Card>
@@ -83,9 +83,9 @@ export default function Roles() {
             const allOn = perms.every((p) => form.permissions.includes(p));
             const someOn = perms.some((p) => form.permissions.includes(p));
             return (
-              <div key={item.module} className="rounded-xl bg-white/5 border border-line p-3">
+              <div key={item.module} className="rounded-xl bg-veil/5 border border-line p-3">
                 <div className="flex items-center justify-between mb-2">
-                  <button onClick={() => toggleModule(item)} className="flex items-center gap-2 text-sm font-semibold text-white">
+                  <button onClick={() => toggleModule(item)} className="flex items-center gap-2 text-sm font-semibold text-ink">
                     <span className={`h-4 w-4 rounded grid place-items-center border ${allOn ? "bg-accent border-accent" : someOn ? "bg-accent/40 border-accent/50" : "border-line"}`}>{allOn && <span className="text-[10px] text-white">✓</span>}</span>
                     {item.label}
                   </button>
@@ -95,7 +95,7 @@ export default function Roles() {
                     const p = `${item.module}:${a}`;
                     const on = form.permissions.includes(p);
                     return (
-                      <button key={a} onClick={() => toggle(p)} className={`chip ${on ? "bg-accent/15 text-accent-soft border border-accent/30" : "bg-white/5 text-slate-400 border border-line"}`}>
+                      <button key={a} onClick={() => toggle(p)} className={`chip ${on ? "bg-accent/15 text-accent-soft border border-accent/30" : "bg-veil/5 text-slate-400 border border-line"}`}>
                         {ACT_LABEL[a] || a}
                       </button>
                     );
@@ -107,7 +107,7 @@ export default function Roles() {
         </div>
 
         <div className="flex items-center justify-between mt-5">
-          <span className="text-xs text-slate-500">Выбрано прав: <span className="text-white font-semibold">{form.permissions.length}</span></span>
+          <span className="text-xs text-slate-500">Выбрано прав: <span className="text-ink font-semibold">{form.permissions.length}</span></span>
           <div className="flex gap-2"><button className="btn-ghost" onClick={() => setOpen(false)}>Отмена</button><button className="btn-primary" onClick={save} disabled={saving}>{saving ? "Сохранение…" : "Сохранить"}</button></div>
         </div>
       </Modal>

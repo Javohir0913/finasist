@@ -28,7 +28,7 @@ export default function Inventory() {
       <SectionTitle title="Склад и производство" sub="Приход и расход сырья/запчастей, выпуск и реализация ГП (себестоимость по средней)" />
       <div className="flex flex-wrap gap-2 mb-4">
         {TABS.map((t) => (
-          <button key={t.k} onClick={() => setTab(t.k)} className={`chip ${tab === t.k ? "bg-accent/15 text-accent-soft border border-accent/25" : "bg-white/5 text-slate-400 border border-line"}`}>{t.label}</button>
+          <button key={t.k} onClick={() => setTab(t.k)} className={`chip ${tab === t.k ? "bg-accent/15 text-accent-soft border border-accent/25" : "bg-veil/5 text-slate-400 border border-line"}`}>{t.label}</button>
         ))}
       </div>
       {tab === "receipt" && <Receipts kind="raw" />}
@@ -92,7 +92,7 @@ function Receipts({ kind }: { kind: string }) {
         {loading ? <Spinner /> : !data?.length ? <EmptyState text="Нет поступлений" /> :
          !f.rows.length ? <EmptyState text="Под фильтр ничего не подошло" /> : (
           <div className="overflow-x-auto"><table className="w-full min-w-[820px]">
-            <thead><tr className="bg-white/[0.02]">
+            <thead><tr className="bg-veil/[0.02]">
               <th className="th">Дата</th><th className="th">Материал</th><th className="th">Поставщик</th>
               <th className="th">Дробилка</th><th className="th">Вид оплаты</th><th className="th">НДС</th>
               <th className="th text-right">Кол-во</th><th className="th text-right">Цена без НДС</th>
@@ -100,8 +100,8 @@ function Receipts({ kind }: { kind: string }) {
               <th className="th text-right">Сумма с НДС</th><th className="th"></th>
             </tr></thead>
             <tbody>{f.rows.map((r) => (
-              <tr key={r.id} className="hover:bg-white/[0.02]">
-                <td className="td">{fmtDate(r.doc_date)}</td><td className="td text-white">{r.material?.code && <span className="text-slate-500 font-mono mr-1.5">{r.material.code}</span>}{r.material?.name}</td>
+              <tr key={r.id} className="hover:bg-veil/[0.02]">
+                <td className="td">{fmtDate(r.doc_date)}</td><td className="td text-ink">{r.material?.code && <span className="text-slate-500 font-mono mr-1.5">{r.material.code}</span>}{r.material?.name}</td>
                 <td className="td max-w-[160px] truncate">{r.organization?.name || "—"}</td>
                 <td className="td">{r.division ? <Badge tone="violet">{r.division}</Badge> : "—"}</td>
                 <td className="td text-slate-400 text-xs">{r.payment_type || "—"}</td>
@@ -110,7 +110,7 @@ function Receipts({ kind }: { kind: string }) {
                 <td className="td text-right">{fmtNum(r.price_uzs)}</td>
                 <td className="td text-right">{fmtNum(r.amount_uzs)}</td>
                 <td className="td text-right text-slate-400">{Number(r.vat_amount) ? fmtNum(r.vat_amount) : "—"}</td>
-                <td className="td text-right font-semibold text-white">{fmtNum(r.amount_gross)}</td>
+                <td className="td text-right font-semibold text-ink">{fmtNum(r.amount_gross)}</td>
                 <td className="td text-right whitespace-nowrap">
                   {can("materials:edit") && <button onClick={() => openEdit(r)} className="text-slate-500 hover:text-accent-soft mr-3">✎</button>}
                   {can("materials:delete") && <button onClick={() => remove(r.id)} className="text-slate-500 hover:text-rose-300">✕</button>}
@@ -140,7 +140,7 @@ function Receipts({ kind }: { kind: string }) {
           <Field label="Количество"><MoneyInput value={form.qty} onChange={(v) => setForm({ ...form, qty: v })} /></Field>
           <Field label="Цена (без НДС), сум"><MoneyInput value={form.price_uzs} onChange={(v) => setForm({ ...form, price_uzs: v })} /></Field>
           <div className="col-span-2 flex items-center gap-2">
-            <input id="rvat" type="checkbox" checked={form.vat} onChange={(e) => setForm({ ...form, vat: e.target.checked })} className="h-4 w-4 accent-[#5b8cff]" />
+            <input id="rvat" type="checkbox" checked={form.vat} onChange={(e) => setForm({ ...form, vat: e.target.checked })} className="h-4 w-4 accent-accent" />
             <label htmlFor="rvat" className="text-sm text-slate-300">Поставщик — плательщик НДС (цена без НДС, налог сверху)</label>
           </div>
           <p className="col-span-2 text-xs text-slate-500">
@@ -189,19 +189,19 @@ function Issues({ kind }: { kind: string }) {
         {loading ? <Spinner /> : !data?.length ? <EmptyState text="Нет расхода" /> :
          !f.rows.length ? <EmptyState text="Под фильтр ничего не подошло" /> : (
           <div className="overflow-x-auto"><table className="w-full min-w-[720px]">
-            <thead><tr className="bg-white/[0.02]">
+            <thead><tr className="bg-veil/[0.02]">
               <th className="th">Дата</th><th className="th">Материал</th><th className="th">Объект</th>
               <th className="th">Код расхода</th><th className="th text-right">Кол-во</th>
               <th className="th text-right">Цена</th><th className="th text-right">Сумма</th><th className="th"></th>
             </tr></thead>
             <tbody>{f.rows.map((r) => (
-              <tr key={r.id} className="hover:bg-white/[0.02]">
-                <td className="td">{fmtDate(r.doc_date)}</td><td className="td text-white">{r.material?.code && <span className="text-slate-500 font-mono mr-1.5">{r.material.code}</span>}{r.material?.name}</td>
+              <tr key={r.id} className="hover:bg-veil/[0.02]">
+                <td className="td">{fmtDate(r.doc_date)}</td><td className="td text-ink">{r.material?.code && <span className="text-slate-500 font-mono mr-1.5">{r.material.code}</span>}{r.material?.name}</td>
                 <td className="td">{r.division ? <Badge tone="violet">{r.division}</Badge> : "—"}</td>
                 <td className="td font-mono text-slate-400">{r.expense_code || "—"}</td>
                 <td className="td text-right">{withUnit(r.qty, r.material?.unit)}</td>
                 <td className="td text-right text-slate-400">{Number(r.qty) ? fmtNum(Number(r.cost_uzs) / Number(r.qty)) : "—"}</td>
-                <td className="td text-right font-semibold text-white">{fmtNum(r.cost_uzs)}</td>
+                <td className="td text-right font-semibold text-ink">{fmtNum(r.cost_uzs)}</td>
                 <td className="td text-right whitespace-nowrap">
                   {can("materials:edit") && <button onClick={() => openEdit(r)} className="text-slate-500 hover:text-accent-soft mr-3">✎</button>}
                   {can("materials:delete") && <button onClick={() => remove(r.id)} className="text-slate-500 hover:text-rose-300">✕</button>}
@@ -220,7 +220,7 @@ function Issues({ kind }: { kind: string }) {
           <Field label="Подразделение"><SearchSelect value={form.division} onChange={(v) => setForm({ ...form, division: v })} placeholder="—" emptyLabel="—" options={(divs || []).map((d) => ({ value: d.name, label: d.name }))} /></Field>
           <Field label="Код расхода"><SearchSelect value={form.expense_code} onChange={(v) => setForm({ ...form, expense_code: v })} placeholder="—" emptyLabel="—" options={(expCodes || []).map((c) => ({ value: c.code, label: `${c.code} · ${c.name}` }))} /></Field>
           <Field label="Количество"><MoneyInput value={form.qty} onChange={(v) => setForm({ ...form, qty: v })} /></Field>
-          <div className="col-span-2 flex items-center gap-2"><input id="issvat" type="checkbox" checked={form.vat} onChange={(e) => setForm({ ...form, vat: e.target.checked })} className="h-4 w-4 accent-[#5b8cff]" /><label htmlFor="issvat" className="text-sm text-slate-300">С НДС (12%)</label></div>
+          <div className="col-span-2 flex items-center gap-2"><input id="issvat" type="checkbox" checked={form.vat} onChange={(e) => setForm({ ...form, vat: e.target.checked })} className="h-4 w-4 accent-accent" /><label htmlFor="issvat" className="text-sm text-slate-300">С НДС (12%)</label></div>
         </div>
         <div className="flex justify-end gap-2 mt-6"><button className="btn-ghost" onClick={() => setOpen(false)}>Отмена</button><button className="btn-primary" onClick={save} disabled={saving || !form.material_id}>Сохранить</button></div>
       </Modal>
@@ -283,13 +283,13 @@ function Productions() {
         {loading ? <Spinner /> : !data?.length ? <EmptyState text="Нет выпуска" /> :
          !f.rows.length ? <EmptyState text="Под фильтр ничего не подошло" /> : (
           <div className="overflow-x-auto"><table className="w-full min-w-[720px]">
-            <thead><tr className="bg-white/[0.02]"><th className="th">Дата</th><th className="th">Продукция</th><th className="th">Подразд.</th><th className="th text-right">Кол-во</th><th className="th text-right">Себест./ед</th><th className="th text-right">Сумма</th><th className="th"></th></tr></thead>
+            <thead><tr className="bg-veil/[0.02]"><th className="th">Дата</th><th className="th">Продукция</th><th className="th">Подразд.</th><th className="th text-right">Кол-во</th><th className="th text-right">Себест./ед</th><th className="th text-right">Сумма</th><th className="th"></th></tr></thead>
             <tbody>{f.rows.map((r) => (
-              <tr key={r.id} className="hover:bg-white/[0.02]">
-                <td className="td">{fmtDate(r.doc_date)}</td><td className="td text-white">{r.product?.code && <span className="text-slate-500 font-mono mr-1.5">{r.product.code}</span>}{r.product?.name}</td>
+              <tr key={r.id} className="hover:bg-veil/[0.02]">
+                <td className="td">{fmtDate(r.doc_date)}</td><td className="td text-ink">{r.product?.code && <span className="text-slate-500 font-mono mr-1.5">{r.product.code}</span>}{r.product?.name}</td>
                 <td className="td">{r.division ? <Badge tone="violet">{r.division}</Badge> : "—"}</td>
                 <td className="td text-right">{fmtNum(r.qty)}</td><td className="td text-right">{fmtNum(r.unit_cost)}</td>
-                <td className="td text-right font-semibold text-white">{fmtNum(r.amount_uzs)}</td>
+                <td className="td text-right font-semibold text-ink">{fmtNum(r.amount_uzs)}</td>
                 <td className="td text-right whitespace-nowrap">
                   {can("production:edit") && <button onClick={() => openEdit(r)} className="text-slate-500 hover:text-accent-soft mr-3">✎</button>}
                   {can("production:delete") && <button onClick={() => remove(r.id)} className="text-slate-500 hover:text-rose-300">✕</button>}
@@ -318,7 +318,7 @@ function Productions() {
           </Field>
         </div>
         {costHint ? (
-          <div className="mt-3 rounded-xl bg-white/[0.03] border border-line px-3.5 py-3">
+          <div className="mt-3 rounded-xl bg-veil/[0.03] border border-line px-3.5 py-3">
             <div className="flex items-baseline justify-between gap-3">
               <span className="text-sm text-slate-400">Себестоимость за ед. (расчётная)</span>
               <b className="text-xl text-emerald-300 tabular-nums whitespace-nowrap">
@@ -392,7 +392,7 @@ function Sales() {
         {loading ? <Spinner /> : !data?.length ? <EmptyState text="Нет продаж" /> :
          !f.rows.length ? <EmptyState text="Под фильтр ничего не подошло" /> : (
           <div className="overflow-x-auto"><table className="w-full min-w-[900px]">
-            <thead><tr className="bg-white/[0.02]">
+            <thead><tr className="bg-veil/[0.02]">
               <th className="th">Дата</th><th className="th">Продукция</th><th className="th">Покупатель</th>
               <th className="th">Дробилка</th><th className="th">Вид оплаты</th>
               <th className="th text-right">Кол-во</th><th className="th text-right">Цена с НДС</th>
@@ -401,8 +401,8 @@ function Sales() {
               <th className="th text-right">Прибыль</th><th className="th"></th>
             </tr></thead>
             <tbody>{f.rows.map((r) => (
-              <tr key={r.id} className="hover:bg-white/[0.02]">
-                <td className="td">{fmtDate(r.doc_date)}</td><td className="td text-white">{r.product?.code && <span className="text-slate-500 font-mono mr-1.5">{r.product.code}</span>}{r.product?.name}</td>
+              <tr key={r.id} className="hover:bg-veil/[0.02]">
+                <td className="td">{fmtDate(r.doc_date)}</td><td className="td text-ink">{r.product?.code && <span className="text-slate-500 font-mono mr-1.5">{r.product.code}</span>}{r.product?.name}</td>
                 <td className="td max-w-[150px] truncate">{r.organization?.name || "—"}</td>
                 <td className="td">{r.division ? <Badge tone="violet">{r.division}</Badge> : "—"}</td>
                 <td className="td text-slate-400 text-xs">{r.payment_type || "—"}</td>
@@ -412,7 +412,7 @@ function Sales() {
                 <td className="td text-right text-slate-400">{Number(r.vat_amount) ? fmtNum(r.vat_amount) : "—"}</td>
                 <td className="td text-right text-emerald-300">{fmtNum(r.revenue_net)}</td>
                 <td className="td text-right text-slate-400">{fmtNum(r.cogs_uzs)}</td>
-                <td className="td text-right font-semibold text-white">{fmtNum(r.revenue_net - r.cogs_uzs)}</td>
+                <td className="td text-right font-semibold text-ink">{fmtNum(r.revenue_net - r.cogs_uzs)}</td>
                 <td className="td text-right whitespace-nowrap">
                   {can("sales:edit") && <button onClick={() => openEdit(r)} className="text-slate-500 hover:text-accent-soft mr-3">✎</button>}
                   {can("sales:delete") && <button onClick={() => remove(r.id)} className="text-slate-500 hover:text-rose-300">✕</button>}
@@ -445,7 +445,7 @@ function Sales() {
           </Field>
           <Field label="Количество"><MoneyInput value={form.qty} onChange={(v) => setForm({ ...form, qty: v })} /></Field>
           <Field label="Цена (с НДС), сум"><MoneyInput value={form.price_uzs} onChange={(v) => setForm({ ...form, price_uzs: v })} /></Field>
-          <div className="col-span-2 flex items-center gap-2"><input id="svat" type="checkbox" checked={form.vat} onChange={(e) => setForm({ ...form, vat: e.target.checked })} className="h-4 w-4 accent-[#5b8cff]" /><label htmlFor="svat" className="text-sm text-slate-300">С НДС (12%)</label></div>
+          <div className="col-span-2 flex items-center gap-2"><input id="svat" type="checkbox" checked={form.vat} onChange={(e) => setForm({ ...form, vat: e.target.checked })} className="h-4 w-4 accent-accent" /><label htmlFor="svat" className="text-sm text-slate-300">С НДС (12%)</label></div>
           <p className="col-span-2 text-xs text-slate-500">
             Списание идёт со склада выбранной дробилки, по её себестоимости.
           </p>

@@ -95,7 +95,7 @@ export function FilterBar<T>({ f, placeholder = "Поиск по реестру�
       })}
       {children}
       {f.active && (
-        <button className="chip bg-white/5 text-slate-400 border border-line hover:text-white"
+        <button className="chip bg-veil/5 text-slate-400 border border-line hover:text-ink"
           onClick={f.reset}>✕ сбросить</button>
       )}
       <span className="text-xs text-slate-500 ml-auto whitespace-nowrap">
@@ -115,7 +115,7 @@ export function TotalRow({ cells, label = "Итого по фильтру" }: {
 }) {
   return (
     <tfoot>
-      <tr className="border-t-2 border-line bg-white/[0.04] font-semibold text-white">
+      <tr className="border-t-2 border-line bg-veil/[0.04] font-semibold text-ink">
         <td className="td whitespace-nowrap text-slate-300">{label}</td>
         {cells.map((c, i) => (
           <td key={i} className="td text-right tabular-nums whitespace-nowrap">{c ?? ""}</td>

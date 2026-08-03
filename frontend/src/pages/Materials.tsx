@@ -53,7 +53,7 @@ export default function Materials() {
 
       <div className="flex flex-wrap gap-2 mb-4 items-center">
         {[["", "Все"], ["raw", "Сырьё"], ["spare", "Запчасти"]].map(([v, l]) => (
-          <button key={v} onClick={() => setKind(v)} className={`chip ${kind === v ? "bg-accent/15 text-accent-soft border border-accent/25" : "bg-white/5 text-slate-400 border border-line"}`}>{l}</button>
+          <button key={v} onClick={() => setKind(v)} className={`chip ${kind === v ? "bg-accent/15 text-accent-soft border border-accent/25" : "bg-veil/5 text-slate-400 border border-line"}`}>{l}</button>
         ))}
         <input className="input max-w-xs ml-auto" placeholder="Поиск по коду или названию…" value={q} onChange={(e) => setQ(e.target.value)} />
         <span className="text-xs text-slate-500">{rows?.length ?? 0} из {data?.length ?? 0}</span>
@@ -70,13 +70,13 @@ export default function Materials() {
               </tr></thead>
               <tbody>
                 {rows.map((m) => (
-                  <tr key={m.id} className="hover:bg-white/[0.02]">
+                  <tr key={m.id} className="hover:bg-veil/[0.02]">
                     <td className="td text-slate-400 font-mono">{m.code}</td>
-                    <td className="td font-medium text-white">{m.name}</td>
+                    <td className="td font-medium text-ink">{m.name}</td>
                     <td className="td"><Badge tone={m.kind === "raw" ? "amber" : "violet"}>{m.kind === "raw" ? "Сырьё" : "Запчасть"}</Badge></td>
                     <td className="td text-slate-400">{m.source}</td>
                     <td className="td text-right text-slate-400 tabular-nums">{withUnit(m.opening_qty, m.unit)}</td>
-                    <td className="td text-right text-white tabular-nums">{withUnit(m.stock_qty, m.unit)}</td>
+                    <td className="td text-right text-ink tabular-nums">{withUnit(m.stock_qty, m.unit)}</td>
                     <td className="td text-right tabular-nums">{fmtNum(m.avg_cost)}</td>
                     <td className="td text-right whitespace-nowrap">
                       {can("materials:edit") && <button onClick={() => { setEditing(m); setForm({ ...m }); setOpen(true); }} className="text-slate-500 hover:text-accent-soft mr-3">✎</button>}
@@ -87,7 +87,7 @@ export default function Materials() {
               </tbody>
               {/* количества в разных единицах не складываем — итог только в деньгах */}
               <tfoot className="sticky bottom-0 bg-base-850">
-                <tr className="border-t-2 border-line font-semibold text-white">
+                <tr className="border-t-2 border-line font-semibold text-ink">
                   <td className="td whitespace-nowrap text-slate-300" colSpan={6}>
                     Итого по фильтру · {rows.length} позиц. · стоимость запаса
                   </td>

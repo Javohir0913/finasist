@@ -14,6 +14,7 @@ import { Card, KpiCard, SectionTitle, Spinner } from "../components/ui";
 import { fmtDateTime, fmtMoney, makeMoney } from "../lib/format";
 import { PeriodPicker, usePeriod, withPeriod } from "../lib/period";
 import { useApi } from "../lib/useApi";
+import { useChartColors } from "../lib/chartColors";
 import { useRealtime } from "../store/realtime";
 
 type Pair = { uzs: number; usd: number };
@@ -37,9 +38,9 @@ interface Dash {
   };
 }
 
-const PIE = ["#5b8cff", "#2dd4a7", "#a78bfa", "#fbbf24", "#fb7185", "#38bdf8"];
-
 export default function Dashboard() {
+  const C = useChartColors();
+  const PIE = C.pie;
   const [cur, setCur] = useState<"uzs" | "usd">("uzs");
   const { qs, label } = usePeriod();
   const url = withPeriod("/dashboard", qs);
@@ -61,7 +62,7 @@ export default function Dashboard() {
           <div key={p.name} className="flex items-center gap-2">
             <span className="h-2 w-2 rounded-full" style={{ background: p.color || p.fill }} />
             <span className="text-slate-300">{p.name}:</span>
-            <span className="text-white font-semibold">{money(p.value)}</span>
+            <span className="text-ink font-semibold">{money(p.value)}</span>
           </div>
         ))}
       </div>
@@ -91,9 +92,9 @@ export default function Dashboard() {
         right={
           <div className="flex flex-wrap items-center gap-2">
             <PeriodPicker />
-            <div className="flex gap-1 rounded-xl bg-white/5 border border-line p-1">
+            <div className="flex gap-1 rounded-xl bg-veil/5 border border-line p-1">
               {([["uzs", "сум"], ["usd", "$"]] as const).map(([v, l]) => (
-                <button key={v} onClick={() => setCur(v)} className={`px-3 py-1.5 rounded-lg text-sm font-semibold ${cur === v ? "bg-accent text-white" : "text-slate-400 hover:text-white"}`}>{l}</button>
+                <button key={v} onClick={() => setCur(v)} className={`px-3 py-1.5 rounded-lg text-sm font-semibold ${cur === v ? "bg-accent text-white" : "text-slate-400 hover:text-ink"}`}>{l}</button>
               ))}
             </div>
           </div>
@@ -115,7 +116,7 @@ export default function Dashboard() {
 
       {/* Производство и склад */}
       <Card className="mt-4">
-        <h3 className="font-semibold text-white mb-4">
+        <h3 className="font-semibold text-ink mb-4">
           Производство и склад
           <span className="text-xs font-normal text-slate-500"> · {cur === "usd" ? "USD" : "сум"}</span>
         </h3>
@@ -124,9 +125,9 @@ export default function Dashboard() {
           <WCard label="Приход запчастей" value={money(pick(P.spare_receipt))} tone="text-emerald-300" />
           <WCard label="Расход сырья" value={money(pick(P.raw_issue))} tone="text-rose-300" />
           <WCard label="Производство ГП" value={money(pick(P.production_value))} tone="text-accent-soft" sub={`${P.production_qty.toLocaleString("ru-RU")} ед.`} />
-          <WCard label="Остаток сырья" value={money(pick(P.raw_stock))} tone="text-white" />
-          <WCard label="Остаток запчастей" value={money(pick(P.spare_stock))} tone="text-white" />
-          <WCard label="Остаток ГП" value={money(pick(P.gp_stock))} tone="text-white" />
+          <WCard label="Остаток сырья" value={money(pick(P.raw_stock))} tone="text-ink" />
+          <WCard label="Остаток запчастей" value={money(pick(P.spare_stock))} tone="text-ink" />
+          <WCard label="Остаток ГП" value={money(pick(P.gp_stock))} tone="text-ink" />
           <WCard label="Всего на складе" value={money(pick(P.total_stock))} tone="text-violet2" />
         </div>
       </Card>
@@ -135,42 +136,42 @@ export default function Dashboard() {
         <Card className="xl:col-span-2">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="font-semibold text-white">Движение денежных средств</h3>
+              <h3 className="font-semibold text-ink">Движение денежных средств</h3>
               <p className="text-xs text-slate-500">Поступления и расходы по месяцам</p>
             </div>
             <div className="flex gap-4 text-xs">
-              <Legend color="#2dd4a7" label="Приход" />
-              <Legend color="#fb7185" label="Расход" />
+              <Legend color={C.income} label="Приход" />
+              <Legend color={C.expense} label="Расход" />
             </div>
           </div>
           <ResponsiveContainer width="100%" height={280}>
             <AreaChart data={data.cashflow} margin={{ left: -18, right: 8, top: 6 }}>
               <defs>
                 <linearGradient id="gInc" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#2dd4a7" stopOpacity={0.45} />
-                  <stop offset="100%" stopColor="#2dd4a7" stopOpacity={0} />
+                  <stop offset="0%" stopColor={C.income} stopOpacity={0.45} />
+                  <stop offset="100%" stopColor={C.income} stopOpacity={0} />
                 </linearGradient>
                 <linearGradient id="gExp" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#fb7185" stopOpacity={0.4} />
-                  <stop offset="100%" stopColor="#fb7185" stopOpacity={0} />
+                  <stop offset="0%" stopColor={C.expense} stopOpacity={0.4} />
+                  <stop offset="100%" stopColor={C.expense} stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <XAxis dataKey="month" stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} />
+              <XAxis dataKey="month" stroke={C.axis} fontSize={11} tickLine={false} axisLine={false} />
               <YAxis
-                stroke="#64748b" fontSize={11} tickLine={false} axisLine={false}
+                stroke={C.axis} fontSize={11} tickLine={false} axisLine={false}
                 tickFormatter={(v) =>
                   cur === "usd" ? `$${(v / 1000).toFixed(0)}k` : `${(v / 1_000_000).toFixed(0)} млн`
                 }
               />
               <Tooltip content={tooltip} />
-              <Area type="monotone" dataKey={`income_${cur}`} name="Приход" stroke="#2dd4a7" strokeWidth={2} fill="url(#gInc)" />
-              <Area type="monotone" dataKey={`expense_${cur}`} name="Расход" stroke="#fb7185" strokeWidth={2} fill="url(#gExp)" />
+              <Area type="monotone" dataKey={`income_${cur}`} name="Приход" stroke={C.income} strokeWidth={2} fill="url(#gInc)" />
+              <Area type="monotone" dataKey={`expense_${cur}`} name="Расход" stroke={C.expense} strokeWidth={2} fill="url(#gExp)" />
             </AreaChart>
           </ResponsiveContainer>
         </Card>
 
         <Card>
-          <h3 className="font-semibold text-white mb-1">Структура расходов</h3>
+          <h3 className="font-semibold text-ink mb-1">Структура расходов</h3>
           <p className="text-xs text-slate-500 mb-2">По статьям, {cur === "usd" ? "USD" : "сум"}</p>
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
@@ -212,7 +213,7 @@ export default function Dashboard() {
         <Card>
           <div className="flex items-center gap-2 mb-3">
             <span className="h-2 w-2 rounded-full bg-emerald2 animate-pulse-dot" />
-            <h3 className="font-semibold text-white">Живая лента</h3>
+            <h3 className="font-semibold text-ink">Живая лента</h3>
           </div>
           {feed.length === 0 ? (
             <p className="text-sm text-slate-500 py-6 text-center">Ожидание событий… изменения появятся здесь в реальном времени.</p>
@@ -237,7 +238,7 @@ export default function Dashboard() {
 
 function WCard({ label, value, tone, sub }: { label: string; value: string; tone: string; sub?: string }) {
   return (
-    <div className="rounded-xl bg-white/5 border border-line p-3.5">
+    <div className="rounded-xl bg-veil/5 border border-line p-3.5">
       <div className="text-[11px] text-slate-500">{label}</div>
       <div className={`text-lg font-bold mt-1 tabular-nums ${tone}`}>{value}</div>
       {sub && <div className="text-[11px] text-slate-500 mt-0.5">{sub}</div>}
@@ -247,7 +248,7 @@ function WCard({ label, value, tone, sub }: { label: string; value: string; tone
 function Counter({ label, value }: { label: string; value: number }) {
   return (
     <div>
-      <div className="text-2xl font-bold text-white">{value}</div>
+      <div className="text-2xl font-bold text-ink">{value}</div>
       <div className="text-xs text-slate-500 mt-0.5">{label}</div>
     </div>
   );

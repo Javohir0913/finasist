@@ -48,17 +48,17 @@ export default function Users() {
         {loading ? <Spinner /> : !data?.length ? <EmptyState text="Пользователи не найдены" /> : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[760px]">
-              <thead><tr className="bg-white/[0.02]">
+              <thead><tr className="bg-veil/[0.02]">
                 <th className="th">Пользователь</th><th className="th">Email</th><th className="th">Роль</th>
                 <th className="th">Статус</th><th className="th">Создан</th><th className="th"></th>
               </tr></thead>
               <tbody>
                 {data.map((u) => (
-                  <tr key={u.id} className="hover:bg-white/[0.02]">
+                  <tr key={u.id} className="hover:bg-veil/[0.02]">
                     <td className="td">
                       <div className="flex items-center gap-3">
                         <div className="h-8 w-8 rounded-full bg-gradient-to-br from-violet2 to-accent grid place-items-center text-[11px] font-bold text-white">{u.full_name.split(" ").map((s) => s[0]).slice(0, 2).join("")}</div>
-                        <span className="font-medium text-white">{u.full_name}</span>
+                        <span className="font-medium text-ink">{u.full_name}</span>
                       </div>
                     </td>
                     <td className="td text-slate-400">{u.email}</td>
@@ -94,7 +94,7 @@ export default function Users() {
               options={(orgs || []).map((o) => ({ value: String(o.id), label: o.inn ? `${o.name} · ${o.inn}` : o.name, search: `${o.name} ${o.inn || ""}` }))} />
           </Field>
           <div className="col-span-2 flex items-center gap-2 pt-1">
-            <input id="active" type="checkbox" checked={form.is_active} onChange={(e) => setForm({ ...form, is_active: e.target.checked })} className="h-4 w-4 accent-[#5b8cff]" />
+            <input id="active" type="checkbox" checked={form.is_active} onChange={(e) => setForm({ ...form, is_active: e.target.checked })} className="h-4 w-4 accent-accent" />
             <label htmlFor="active" className="text-sm text-slate-300">Учётная запись активна</label>
           </div>
         </div>

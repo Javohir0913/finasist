@@ -42,7 +42,7 @@ export default function Payroll() {
       <SectionTitle title="Зарплата" sub="Расчёт по методике листа «Зарплата»: начисления, удержания, выплаты и долг" />
       <div className="flex gap-2 mb-4">
         {[["payroll", "Расчёт зарплаты"], ["summary", "Свод по объектам"], ["employees", "Сотрудники"]].map(([k, l]) => (
-          <button key={k} onClick={() => setTab(k)} className={`chip ${tab === k ? "bg-accent/15 text-accent-soft border border-accent/25" : "bg-white/5 text-slate-400 border border-line"}`}>{l}</button>
+          <button key={k} onClick={() => setTab(k)} className={`chip ${tab === k ? "bg-accent/15 text-accent-soft border border-accent/25" : "bg-veil/5 text-slate-400 border border-line"}`}>{l}</button>
         ))}
       </div>
       {tab === "employees" ? <Employees /> : tab === "summary" ? <SummaryTab /> : <PayrollTab />}
@@ -92,14 +92,14 @@ function Employees() {
         {loading ? <Spinner /> : !data?.length ? <EmptyState text="Нет сотрудников" /> :
          !f.rows.length ? <EmptyState text="Под фильтр ничего не подошло" /> : (
           <div className="overflow-x-auto"><table className="w-full min-w-[1080px]">
-            <thead><tr className="bg-white/[0.02]">
+            <thead><tr className="bg-veil/[0.02]">
               <th className="th">ФИО</th><th className="th">Подразд.</th><th className="th">Отдел</th>
               <th className="th">Должность</th><th className="th">Категория</th><th className="th">Состояние</th>
               <th className="th">Оплата</th><th className="th text-right">Оклад</th><th className="th"></th>
             </tr></thead>
             <tbody>{f.rows.map((e) => (
-              <tr key={e.id} className="hover:bg-white/[0.02]">
-                <td className="td text-white">{e.full_name}{!e.is_active && <span className="text-slate-600 text-xs ml-2">(неактивен)</span>}</td>
+              <tr key={e.id} className="hover:bg-veil/[0.02]">
+                <td className="td text-ink">{e.full_name}{!e.is_active && <span className="text-slate-600 text-xs ml-2">(неактивен)</span>}</td>
                 <td className="td">{e.division ? <Badge tone="violet">{e.division}</Badge> : "—"}</td>
                 <td className="td">{e.department || "—"}</td><td className="td">{e.position || "—"}</td>
                 <td className="td text-slate-400 text-xs">{e.category || "—"}</td>
@@ -133,7 +133,7 @@ function Employees() {
           <Field label="Код расхода"><SearchSelect value={form.expense_code} onChange={(v) => setForm({ ...form, expense_code: v })} placeholder="—" emptyLabel="—" options={(expCodes || []).map((c) => ({ value: c.code, label: `${c.code} · ${c.name}` }))} /></Field>
           <Field label="Валюта оклада"><select className="input" value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })}><option>UZS</option><option>USD</option></select></Field>
           <Field label="Оклад"><MoneyInput value={form.salary} onChange={(v) => setForm({ ...form, salary: v })} /></Field>
-          <div className="col-span-2 flex items-center gap-2"><input id="eact" type="checkbox" checked={form.is_active} onChange={(e) => setForm({ ...form, is_active: e.target.checked })} className="h-4 w-4 accent-[#5b8cff]" /><label htmlFor="eact" className="text-sm text-slate-300">Активен</label></div>
+          <div className="col-span-2 flex items-center gap-2"><input id="eact" type="checkbox" checked={form.is_active} onChange={(e) => setForm({ ...form, is_active: e.target.checked })} className="h-4 w-4 accent-accent" /><label htmlFor="eact" className="text-sm text-slate-300">Активен</label></div>
         </div>
         <div className="flex justify-end gap-2 mt-6"><button className="btn-ghost" onClick={() => setOpen(false)}>Отмена</button><button className="btn-primary" onClick={save} disabled={saving || !form.full_name}>Сохранить</button></div>
       </Modal>
@@ -201,13 +201,13 @@ function CalcPreview({ form, rates, emp }: {
   if (!c.onHand) return null;
   const pct = (r: number) => `${+(r * 100).toFixed(2)}%`;
   const Row = ({ l, v, tone = "", bold = false }: any) => (
-    <div className={`flex items-baseline justify-between gap-3 py-1 ${bold ? "border-t border-line pt-2 mt-1 font-semibold text-white" : "text-slate-400"}`}>
+    <div className={`flex items-baseline justify-between gap-3 py-1 ${bold ? "border-t border-line pt-2 mt-1 font-semibold text-ink" : "text-slate-400"}`}>
       <span>{l}</span>
       <span className={`font-mono tabular-nums whitespace-nowrap ${tone}`}>{fmtNum(v)}</span>
     </div>
   );
   return (
-    <div className="mt-4 rounded-xl bg-white/[0.03] border border-line px-4 py-3 text-sm">
+    <div className="mt-4 rounded-xl bg-veil/[0.03] border border-line px-4 py-3 text-sm">
       <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">
         Как считается
       </div>
@@ -350,11 +350,11 @@ function PayrollTab() {
               {f.rows.map((p) => {
                 const N = (v: any) => (Number(v) ? fmtNum(v) : "—");
                 return (
-                  <tr key={p.id} className="hover:bg-white/[0.02]">
-                    <td className="td text-white whitespace-nowrap">
+                  <tr key={p.id} className="hover:bg-veil/[0.02]">
+                    <td className="td text-ink whitespace-nowrap">
                       {p.employee?.full_name}
                       <span className={`chip ml-2 text-[10px] ${p.pay_mode === "cash"
-                        ? "bg-white/5 text-slate-400 border border-line"
+                        ? "bg-veil/5 text-slate-400 border border-line"
                         : "bg-violet2/15 text-violet2 border border-violet2/25"}`}
                         title={p.pay_mode === "cash"
                           ? "Наличными — налоги не начислялись"
@@ -369,7 +369,7 @@ function PayrollTab() {
                     <td className="td text-right tabular-nums">{N(p.pitanie)}</td>
                     <td className="td text-right tabular-nums">{N(p.bonus)}</td>
                     <td className="td text-right tabular-nums">{N(p.benzin)}</td>
-                    <td className="td text-right font-medium text-white tabular-nums">{fmtNum(p.gross)}</td>
+                    <td className="td text-right font-medium text-ink tabular-nums">{fmtNum(p.gross)}</td>
                     <td className="td text-right text-rose-300 border-l border-line tabular-nums">{fmtNum(p.ndfl)}</td>
                     <td className="td text-right text-slate-400 tabular-nums">{N(p.inps)}</td>
                     <td className="td text-right text-slate-400 tabular-nums">{N(p.hold_pitanie)}</td>
@@ -380,7 +380,7 @@ function PayrollTab() {
                     <td className="td text-right border-l border-line tabular-nums">{N(p.avans)}</td>
                     <td className="td text-right tabular-nums">{N(p.paid_cash)}</td>
                     <td className="td text-right tabular-nums">{N(p.paid_card)}</td>
-                    <td className="td text-right text-white tabular-nums">{fmtNum(p.paid)}</td>
+                    <td className="td text-right text-ink tabular-nums">{fmtNum(p.paid)}</td>
                     <td className={`td text-right font-semibold border-l border-line tabular-nums ${Number(p.balance) > 0 ? "text-rose-300" : "text-slate-400"}`}>{fmtNum(p.balance)}</td>
                     <td className="td text-right text-amber-300 tabular-nums">{fmtNum(p.esp)}</td>
                     <td className="td text-right whitespace-nowrap">
@@ -393,7 +393,7 @@ function PayrollTab() {
               })}
             </tbody>
             <tfoot className="sticky bottom-0 bg-base-850">
-              <tr className="font-semibold text-white">
+              <tr className="font-semibold text-ink">
                 <td className="td" colSpan={2}>{f.active ? "ИТОГО ПО ФИЛЬТРУ" : "ИТОГО"}</td>
                 <td className="td text-right tabular-nums">{fmtNum(sum("debt_start"))}</td>
                 <td className="td text-right border-l border-line tabular-nums">{fmtNum(sum("oklad"))}</td>
@@ -456,11 +456,11 @@ function PayrollTab() {
                     равняться начисленному на руки.
                   </p>
                   <div className={`mt-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 rounded-xl border px-3.5 py-2.5 text-sm ${
-                    mismatch ? "border-rose-500/40 bg-rose-500/10" : "border-line bg-white/[0.03]"}`}>
+                    mismatch ? "border-rose-500/40 bg-rose-500/10" : "border-line bg-veil/[0.03]"}`}>
                     <span className="text-slate-400">
-                      Вписано <b className="text-white font-mono tabular-nums">{fmtNum(paidSum)}</b>
+                      Вписано <b className="text-ink font-mono tabular-nums">{fmtNum(paidSum)}</b>
                       {" из "}
-                      <b className="text-white font-mono tabular-nums">{fmtNum(calc.toPay)}</b>
+                      <b className="text-ink font-mono tabular-nums">{fmtNum(calc.toPay)}</b>
                       {" на руки"}
                     </span>
                     {mismatch ? (
@@ -475,7 +475,7 @@ function PayrollTab() {
                   </div>
                   {Number(form.avans || 0) > 0 && (
                     <div className={`mt-2 rounded-xl border px-3.5 py-2.5 ${
-                      needAvansType ? "border-amber-500/40 bg-amber-500/10" : "border-line bg-white/[0.03]"}`}>
+                      needAvansType ? "border-amber-500/40 bg-amber-500/10" : "border-line bg-veil/[0.03]"}`}>
                       <div className="text-sm text-slate-300 mb-2">
                         Чем выдан аванс? <span className="text-rose-300">*</span>
                       </div>
@@ -485,7 +485,7 @@ function PayrollTab() {
                             onClick={() => setForm({ ...form, avans_type: v })}
                             className={`chip ${form.avans_type === v
                               ? "bg-accent/15 text-accent-soft border border-accent/25"
-                              : "bg-white/5 text-slate-400 border border-line"}`}>
+                              : "bg-veil/5 text-slate-400 border border-line"}`}>
                             {l}
                           </button>
                         ))}
@@ -534,19 +534,19 @@ function SummaryTab() {
       <Card className="!p-0 overflow-hidden">
         {loading || !data ? <Spinner /> : !data.rows.length ? <EmptyState text="Нет начислений за период" /> : (
           <div className="overflow-x-auto"><table className="w-full min-w-[1100px] text-sm">
-            <thead><tr className="bg-white/[0.02]">
+            <thead><tr className="bg-veil/[0.02]">
               <th className="th">Объект</th><th className="th">Код расхода</th>
               {COLS.map(([, l]) => <th key={l} className="th text-right">{l}</th>)}
             </tr></thead>
             <tbody>
               {data.rows.map((r, i) => (
-                <tr key={i} className="hover:bg-white/[0.02]">
-                  <td className="td text-white">{r.division}</td>
+                <tr key={i} className="hover:bg-veil/[0.02]">
+                  <td className="td text-ink">{r.division}</td>
                   <td className="td font-mono text-slate-400">{r.expense_code}</td>
                   {COLS.map(([k]) => <td key={k} className="td text-right tabular-nums">{fmtNum(r[k])}</td>)}
                 </tr>
               ))}
-              <tr className="bg-white/[0.03] font-semibold text-white">
+              <tr className="bg-veil/[0.03] font-semibold text-ink">
                 <td className="td" colSpan={2}>ИТОГО</td>
                 {COLS.map(([k]) => <td key={k} className="td text-right tabular-nums">{fmtNum(data.totals[k])}</td>)}
               </tr>

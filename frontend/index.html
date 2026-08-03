@@ -9,6 +9,21 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
+    <!-- Тема ставится до первой отрисовки: иначе тёмный интерфейс на миг
+         моргает светлым (тот же выбор дублирует src/store/theme.tsx). -->
+    <script>
+      (function () {
+        var t;
+        try {
+          t = localStorage.getItem("pd-theme");
+        } catch (e) {}
+        if (t !== "light" && t !== "dark")
+          t = window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+        document.documentElement.classList.toggle("dark", t === "dark");
+        document.documentElement.dataset.theme = t;
+        document.documentElement.style.colorScheme = t;
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

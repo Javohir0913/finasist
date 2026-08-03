@@ -72,7 +72,7 @@ export function SearchSelect({
           />
           <div className="space-y-0.5">
             {allowEmpty && (
-              <button type="button" onClick={() => pick("")} className="block w-full text-left px-2 py-1.5 rounded-lg text-sm text-slate-400 hover:bg-white/10">
+              <button type="button" onClick={() => pick("")} className="block w-full text-left px-2 py-1.5 rounded-lg text-sm text-slate-400 hover:bg-veil/10">
                 {emptyLabel}
               </button>
             )}
@@ -82,7 +82,7 @@ export function SearchSelect({
                 key={o.value}
                 onClick={() => pick(o.value)}
                 className={clsx(
-                  "block w-full text-left px-2 py-1.5 rounded-lg text-sm hover:bg-white/10",
+                  "block w-full text-left px-2 py-1.5 rounded-lg text-sm hover:bg-veil/10",
                   o.value === value ? "bg-accent/15 text-accent-soft" : "text-slate-300"
                 )}
               >
@@ -182,7 +182,7 @@ export function SectionTitle({ title, sub, right }: { title: string; sub?: strin
   return (
     <div className="flex items-end justify-between gap-4 mb-5">
       <div>
-        <h1 className="text-xl font-bold text-white tracking-tight">{title}</h1>
+        <h1 className="text-xl font-bold text-ink tracking-tight">{title}</h1>
         {sub && <p className="text-sm text-slate-400 mt-1">{sub}</p>}
       </div>
       {right}
@@ -195,7 +195,7 @@ const toneMap: Record<string, string> = {
   rose: "bg-rose-500/12 text-rose-300 border border-rose-500/20",
   violet: "bg-violet-500/12 text-violet-300 border border-violet-500/20",
   amber: "bg-amber-500/12 text-amber-300 border border-amber-500/20",
-  slate: "bg-white/5 text-slate-300 border border-line",
+  slate: "bg-veil/5 text-slate-300 border border-line",
   accent: "bg-accent/15 text-accent-soft border border-accent/25",
 };
 
@@ -222,7 +222,7 @@ export function KpiCard({
     violet: "from-violet-500/20",
     amber: "from-amber-500/20",
     accent: "from-accent/20",
-    slate: "from-white/10",
+    slate: "from-veil/10",
   };
   return (
     <div className="relative overflow-hidden glass p-5 animate-fade-in">
@@ -232,7 +232,7 @@ export function KpiCard({
           <span className="text-xs font-medium text-slate-400">{label}</span>
           {icon && <span className={clsx("h-9 w-9 grid place-items-center rounded-xl", toneMap[tone])}>{icon}</span>}
         </div>
-        <div className="mt-3 text-2xl font-bold text-white tracking-tight">{value}</div>
+        <div className="mt-3 text-2xl font-bold text-ink tracking-tight">{value}</div>
         {delta && <div className="mt-1 text-xs text-slate-400">{delta}</div>}
       </div>
     </div>
@@ -260,13 +260,13 @@ export function Modal({
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 grid place-items-center p-4">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 backdrop-veil backdrop-blur-sm" onClick={onClose} />
       {/* Высокая форма не должна вылезать за экран: панель ограничена по высоте,
           шапка закреплена, а содержимое (включая кнопки) прокручивается. */}
       <div className={clsx("relative w-full glass animate-fade-in flex flex-col modal-panel", width)}>
         <div className="flex items-center justify-between gap-4 px-6 pt-6 pb-4 shrink-0">
-          <h3 className="text-lg font-semibold text-white">{title}</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none">
+          <h3 className="text-lg font-semibold text-ink">{title}</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-ink text-xl leading-none">
             ✕
           </button>
         </div>
@@ -299,7 +299,7 @@ export function EmptyState({ text }: { text: string }) {
 export function Spinner() {
   return (
     <div className="grid place-items-center py-24">
-      <div className="h-8 w-8 rounded-full border-2 border-white/15 border-t-accent animate-spin" />
+      <div className="h-8 w-8 rounded-full border-2 border-veil/15 border-t-accent animate-spin" />
     </div>
   );
 }

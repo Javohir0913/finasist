@@ -4,12 +4,14 @@ import api, { apiError } from "../api/client";
 import { Card, EmptyState, Field, Modal, MoneyInput, SectionTitle, Spinner } from "../components/ui";
 import { fmtDate, fmtNum } from "../lib/format";
 import { useApi } from "../lib/useApi";
+import { useChartColors } from "../lib/chartColors";
 import { useAuth } from "../store/auth";
 
 interface R { id: number; rate_date: string; rate: number }
 
 export default function Exchange() {
   const { can } = useAuth();
+  const C = useChartColors();
   const { data, loading, reload } = useApi<R[]>("/exchange");
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ rate_date: new Date().toISOString().slice(0, 10), rate: 12550 });
@@ -31,14 +33,24 @@ export default function Exchange() {
       {loading ? <Spinner /> : (
         <>
           <Card className="mb-4">
-            <h3 className="font-semibold text-white mb-3">Динамика курса</h3>
+            <h3 className="font-semibold text-ink mb-3">Динамика курса</h3>
             <ResponsiveContainer width="100%" height={240}>
               <AreaChart data={chart} margin={{ left: -8, right: 8, top: 6 }}>
-                <defs><linearGradient id="gRate" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#5b8cff" stopOpacity={0.4} /><stop offset="100%" stopColor="#5b8cff" stopOpacity={0} /></linearGradient></defs>
-                <XAxis dataKey="d" stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} />
-                <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} domain={["dataMin - 30", "dataMax + 30"]} />
-                <Tooltip contentStyle={{ background: "#0f1523", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12 }} />
-                <Area type="monotone" dataKey="rate" stroke="#5b8cff" strokeWidth={2} fill="url(#gRate)" />
+                <defs><linearGradient id="gRate" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={C.accent} stopOpacity={0.4} /><stop offset="100%" stopColor={C.accent} stopOpacity={0} /></linearGradient></defs>
+                <XAxis dataKey="d" stroke={C.axis} fontSize={11} tickLine={false} axisLine={false} />
+                <YAxis stroke={C.axis} fontSize={11} tickLine={false} axisLine={false} domain={["dataMin - 30", "dataMax + 30"]} />
+                {/* Подсказка recharts рисуется инлайн-стилем — цвета берём из переменных темы */}
+                <Tooltip
+                  contentStyle={{
+                    background: "rgb(var(--c-base-850))",
+                    border: "1px solid rgb(var(--c-line))",
+                    borderRadius: 12,
+                    color: "rgb(var(--c-slate-200))",
+                  }}
+                  labelStyle={{ color: "rgb(var(--c-slate-400))" }}
+                  itemStyle={{ color: "rgb(var(--c-slate-200))" }}
+                />
+                <Area type="monotone" dataKey="rate" stroke={C.accent} strokeWidth={2} fill="url(#gRate)" />
               </AreaChart>
             </ResponsiveContainer>
           </Card>
@@ -46,8 +58,8 @@ export default function Exchange() {
           <Card className="!p-0 overflow-hidden">
             {!data?.length ? <EmptyState text="Нет данных" /> : (
               <table className="w-full">
-                <thead><tr className="bg-white/[0.02]"><th className="th">Дата</th><th className="th text-right">Курс (1$ =)</th></tr></thead>
-                <tbody>{data.map((r) => (<tr key={r.id} className="hover:bg-white/[0.02]"><td className="td">{fmtDate(r.rate_date)}</td><td className="td text-right font-semibold text-white">{fmtNum(r.rate)} сум</td></tr>))}</tbody>
+                <thead><tr className="bg-veil/[0.02]"><th className="th">Дата</th><th className="th text-right">Курс (1$ =)</th></tr></thead>
+                <tbody>{data.map((r) => (<tr key={r.id} className="hover:bg-veil/[0.02]"><td className="td">{fmtDate(r.rate_date)}</td><td className="td text-right font-semibold text-ink">{fmtNum(r.rate)} сум</td></tr>))}</tbody>
               </table>
             )}
           </Card>

@@ -64,7 +64,7 @@ export default function Products() {
           <Card className="!p-4 mb-4 flex flex-wrap gap-6 text-sm">
             <div>
               <div className="text-[11px] text-slate-500">Позиций по фильтру</div>
-              <div className="text-white font-semibold tabular-nums">{f.rows.length}</div>
+              <div className="text-ink font-semibold tabular-nums">{f.rows.length}</div>
             </div>
             <div>
               <div className="text-[11px] text-slate-500">Стоимость остатка ГП</div>
@@ -85,7 +85,7 @@ export default function Products() {
               <div className="flex items-start justify-between">
                 <div>
                   <div className="text-xs text-slate-500">Код {p.code}</div>
-                  <div className="text-lg font-semibold text-white mt-0.5">{p.name}</div>
+                  <div className="text-lg font-semibold text-ink mt-0.5">{p.name}</div>
                 </div>
                 <div className="text-right">
                   {can("products:edit") && <button onClick={() => { setEditing(p); setForm({ ...p }); setOpen(true); }} className="text-slate-500 hover:text-accent-soft mr-2">✎</button>}
@@ -93,10 +93,10 @@ export default function Products() {
                 </div>
               </div>
               <div className="mt-4 grid grid-cols-2 gap-3">
-                <div className="rounded-xl bg-white/5 p-3"><div className="text-[11px] text-slate-500">Остаток</div><div className="text-white font-semibold tabular-nums">{withUnit(p.stock_qty, p.unit)}</div></div>
-                <div className="rounded-xl bg-white/5 p-3"><div className="text-[11px] text-slate-500">Себестоимость</div><div className="text-white font-semibold tabular-nums">{fmtNum(p.avg_cost)}</div></div>
-                <div className="rounded-xl bg-white/5 p-3"><div className="text-[11px] text-slate-500">Входящий остаток</div><div className="text-slate-300 font-semibold tabular-nums">{withUnit(p.opening_qty, p.unit)}</div></div>
-                <div className="rounded-xl bg-white/5 p-3"><div className="text-[11px] text-slate-500">Прайс, сум</div><div className="text-slate-300 font-semibold tabular-nums">{fmtNum(p.sale_price)}</div></div>
+                <div className="rounded-xl bg-veil/5 p-3"><div className="text-[11px] text-slate-500">Остаток</div><div className="text-ink font-semibold tabular-nums">{withUnit(p.stock_qty, p.unit)}</div></div>
+                <div className="rounded-xl bg-veil/5 p-3"><div className="text-[11px] text-slate-500">Себестоимость</div><div className="text-ink font-semibold tabular-nums">{fmtNum(p.avg_cost)}</div></div>
+                <div className="rounded-xl bg-veil/5 p-3"><div className="text-[11px] text-slate-500">Входящий остаток</div><div className="text-slate-300 font-semibold tabular-nums">{withUnit(p.opening_qty, p.unit)}</div></div>
+                <div className="rounded-xl bg-veil/5 p-3"><div className="text-[11px] text-slate-500">Прайс, сум</div><div className="text-slate-300 font-semibold tabular-nums">{fmtNum(p.sale_price)}</div></div>
               </div>
               <div className="mt-3 text-sm text-slate-400">Стоимость остатка: <span className="text-emerald-300 font-semibold">{fmtNum(Number(p.stock_qty) * Number(p.avg_cost))} сум</span></div>
             </Card>

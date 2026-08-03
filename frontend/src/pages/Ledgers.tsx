@@ -61,7 +61,7 @@ export default function Ledgers() {
           <button
             key={t.key}
             onClick={() => setLedger(t.key)}
-            className={`chip ${ledger === t.key ? "bg-accent/15 text-accent-soft border border-accent/25" : "bg-white/5 text-slate-400 border border-line"}`}
+            className={`chip ${ledger === t.key ? "bg-accent/15 text-accent-soft border border-accent/25" : "bg-veil/5 text-slate-400 border border-line"}`}
           >
             {t.label}
           </button>
@@ -83,14 +83,14 @@ export default function Ledgers() {
             <option value="moved">был оборот за период</option>
           </select>
           {filtered && (
-            <button className="chip bg-white/5 text-slate-400 border border-line hover:text-white"
+            <button className="chip bg-veil/5 text-slate-400 border border-line hover:text-ink"
               onClick={() => { setQ(""); setSide(""); }}>✕ сбросить</button>
           )}
           <span className="text-xs text-slate-500">
             {current?.label} · показано {rows.length} из {data?.rows.length ?? 0}
           </span>
           <label className="flex items-center gap-2 text-sm text-slate-400 ml-auto">
-            <input type="checkbox" checked={fx} onChange={(e) => setFx(e.target.checked)} className="h-4 w-4 accent-[#5b8cff]" />
+            <input type="checkbox" checked={fx} onChange={(e) => setFx(e.target.checked)} className="h-4 w-4 accent-accent" />
             Переоценка и курсовая разница
           </label>
         </div>
@@ -126,9 +126,9 @@ export default function Ledgers() {
               </thead>
               <tbody>
                 {rows.map((r) => (
-                  <tr key={r.id} className="hover:bg-white/[0.02]">
+                  <tr key={r.id} className="hover:bg-veil/[0.02]">
                     <td className="td font-mono text-slate-500">{r.inn || "—"}</td>
-                    <td className="td text-white">{r.name}</td>
+                    <td className="td text-ink">{r.name}</td>
                     <td className="td text-right tabular-nums border-l border-line">{fmtMoney(r.open_debit)}</td>
                     <td className="td text-right tabular-nums">{fmtMoney(r.open_credit)}</td>
                     <td className="td text-right tabular-nums border-l border-line">{fmtMoney(r.turn_debit)}</td>
@@ -144,7 +144,7 @@ export default function Ledgers() {
                 ))}
               </tbody>
               <tfoot className="sticky bottom-0 bg-base-850">
-                <tr className="font-semibold text-white">
+                <tr className="font-semibold text-ink">
                   <td className="td" colSpan={2}>{filtered ? "ВСЕГО ПО ФИЛЬТРУ" : "ВСЕГО"}</td>
                   <td className="td text-right tabular-nums border-l border-line">{fmtMoney(T("open_debit"))}</td>
                   <td className="td text-right tabular-nums">{fmtMoney(T("open_credit"))}</td>

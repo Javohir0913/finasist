@@ -55,8 +55,8 @@ export default function StockEditor({
   const free = [{ name: "" }, ...(divisions || [])].filter((d) => !used.has(d.name));
 
   return (
-    <div className="rounded-xl bg-white/[0.03] border border-line p-3.5">
-      <div className="text-sm font-semibold text-white mb-2">{title}</div>
+    <div className="rounded-xl bg-veil/[0.03] border border-line p-3.5">
+      <div className="text-sm font-semibold text-ink mb-2">{title}</div>
       {err && <div className="mb-2 text-xs text-rose-300">{err}</div>}
 
       {rows?.length ? (
@@ -88,7 +88,7 @@ export default function StockEditor({
                     <MoneyInput className="input !py-1 text-right" value={cost}
                       onChange={(v) => setDraft({ ...draft, [key]: { qty, cost: v } })} />
                   </td>
-                  <td className="td text-right text-white tabular-nums whitespace-nowrap">{withUnit(r.stock_qty, unit)}</td>
+                  <td className="td text-right text-ink tabular-nums whitespace-nowrap">{withUnit(r.stock_qty, unit)}</td>
                   <td className="td text-right tabular-nums whitespace-nowrap">{fmtNum(r.avg_cost)}</td>
                   <td className="td text-right whitespace-nowrap">
                     {dirty && (

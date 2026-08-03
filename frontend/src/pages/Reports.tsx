@@ -54,9 +54,9 @@ export default function Reports() {
         right={
           <div className="flex flex-wrap items-center gap-2">
             <PeriodPicker />
-            <div className="flex gap-1 rounded-xl bg-white/5 border border-line p-1">
+            <div className="flex gap-1 rounded-xl bg-veil/5 border border-line p-1">
               {[["uzs", "сум"], ["usd", "$"]].map(([v, l]) => (
-                <button key={v} onClick={() => setCur(v)} className={`px-3 py-1.5 rounded-lg text-sm font-semibold ${cur === v ? "bg-accent text-white" : "text-slate-400 hover:text-white"}`}>{l}</button>
+                <button key={v} onClick={() => setCur(v)} className={`px-3 py-1.5 rounded-lg text-sm font-semibold ${cur === v ? "bg-accent text-white" : "text-slate-400 hover:text-ink"}`}>{l}</button>
               ))}
             </div>
             <ExportButton url={withPeriod(`/export/reports?only=${current?.exp || "pnl"}`, qs)} label="Этот отчёт" />
@@ -67,7 +67,7 @@ export default function Reports() {
       {cur === "usd" && <div className="mb-4 text-xs text-slate-500">Пересчёт в USD по последнему курсу: 1$ = {fmtMoney(rate)} сум</div>}
       <div className="flex flex-wrap gap-2 mb-4">
         {TABS.map((t) => (
-          <button key={t.k} onClick={() => setTab(t.k)} className={`chip ${tab === t.k ? "bg-accent/15 text-accent-soft border border-accent/25" : "bg-white/5 text-slate-400 border border-line"}`}>{t.label}</button>
+          <button key={t.k} onClick={() => setTab(t.k)} className={`chip ${tab === t.k ? "bg-accent/15 text-accent-soft border border-accent/25" : "bg-veil/5 text-slate-400 border border-line"}`}>{t.label}</button>
         ))}
       </div>
       {tab === "pnl" && <PnL />}
@@ -95,9 +95,9 @@ function DivSelect({ div, setDiv }: { div: string; setDiv: (v: string) => void }
   const { data: divs } = useApi<{ name: string }[]>("/divisions");
   return (
     <div className="flex flex-wrap gap-2 mb-3">
-      <button onClick={() => setDiv("")} className={`chip ${!div ? "bg-accent/15 text-accent-soft border border-accent/25" : "bg-white/5 text-slate-400 border border-line"}`}>Всё предприятие</button>
+      <button onClick={() => setDiv("")} className={`chip ${!div ? "bg-accent/15 text-accent-soft border border-accent/25" : "bg-veil/5 text-slate-400 border border-line"}`}>Всё предприятие</button>
       {(divs || []).map((d) => (
-        <button key={d.name} onClick={() => setDiv(d.name)} className={`chip ${div === d.name ? "bg-accent/15 text-accent-soft border border-accent/25" : "bg-white/5 text-slate-400 border border-line"}`}>{d.name}</button>
+        <button key={d.name} onClick={() => setDiv(d.name)} className={`chip ${div === d.name ? "bg-accent/15 text-accent-soft border border-accent/25" : "bg-veil/5 text-slate-400 border border-line"}`}>{d.name}</button>
       ))}
     </div>
   );
@@ -114,7 +114,7 @@ function PnL() {
 /** Форма №2 целиком: от выручки до чистой прибыли, с кодами строк бланка. */
 function PnLBody({ data, money }: { data: any; money: (v: number) => string }) {
   const R = (code: string, l: string, v: number, opts: { bold?: boolean; tone?: string; ind?: boolean } = {}) => (
-    <div className={`flex items-baseline gap-3 py-2 ${opts.bold ? "border-t border-line font-semibold text-white" : "text-slate-300"} ${opts.ind ? "text-sm text-slate-400" : ""}`}>
+    <div className={`flex items-baseline gap-3 py-2 ${opts.bold ? "border-t border-line font-semibold text-ink" : "text-slate-300"} ${opts.ind ? "text-sm text-slate-400" : ""}`}>
       <span className="w-9 shrink-0 font-mono text-xs text-slate-600">{code}</span>
       <span className={`flex-1 ${opts.ind ? "pl-3" : ""}`}>{l}</span>
       <span className={`font-mono tabular-nums ${opts.tone || ""}`}>{money(v)}</span>
@@ -123,7 +123,7 @@ function PnLBody({ data, money }: { data: any; money: (v: number) => string }) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       <Card>
-        <h3 className="font-semibold text-white mb-2">Отчёт о финансовых результатах — Форма №2</h3>
+        <h3 className="font-semibold text-ink mb-2">Отчёт о финансовых результатах — Форма №2</h3>
         {R("010", "Чистая выручка от реализации", data.revenue, { tone: "text-emerald-300" })}
         {R("020", "Себестоимость реализованной продукции", -data.cogs, { ind: true })}
         {R("030", "Валовая прибыль (010 − 020)", data.gross, { bold: true })}
@@ -170,21 +170,21 @@ function PnLDivisions() {
   ];
   return (
     <Card className="!p-0 overflow-hidden">
-      <div className="p-4 border-b border-line"><h3 className="font-semibold text-white">ОФР по подразделениям</h3></div>
+      <div className="p-4 border-b border-line"><h3 className="font-semibold text-ink">ОФР по подразделениям</h3></div>
       {!data.rows.length ? <EmptyState text="Нет данных по подразделениям за период" /> : (
         <div className="overflow-x-auto"><table className="w-full min-w-[980px] text-sm">
-          <thead><tr className="bg-white/[0.02]">
+          <thead><tr className="bg-veil/[0.02]">
             <th className="th">Подразделение</th>
             {COLS.map(([, l]) => <th key={l} className="th text-right">{l}</th>)}
           </tr></thead>
           <tbody>
             {data.rows.map((r: any) => (
-              <tr key={r.division} className="hover:bg-white/[0.02]">
-                <td className="td text-white">{r.division}</td>
+              <tr key={r.division} className="hover:bg-veil/[0.02]">
+                <td className="td text-ink">{r.division}</td>
                 {COLS.map(([k]) => <td key={k} className="td text-right tabular-nums">{money(r[k])}</td>)}
               </tr>
             ))}
-            <tr className="bg-white/[0.03] font-semibold text-white">
+            <tr className="bg-veil/[0.03] font-semibold text-ink">
               <td className="td">ВСЕГО по предприятию</td>
               {COLS.map(([k]) => <td key={k} className="td text-right tabular-nums">{money(data.total[k])}</td>)}
             </tr>
@@ -206,19 +206,19 @@ function BalanceSheet() {
   if (loading || !data) return <Spinner />;
   const Side = ({ title, rows }: { title: string; rows: any[] }) => (
     <Card className="!p-0 overflow-hidden">
-      <div className="p-4 border-b border-line"><h3 className="font-semibold text-white">{title}</h3></div>
+      <div className="p-4 border-b border-line"><h3 className="font-semibold text-ink">{title}</h3></div>
       <table className="w-full text-sm">
-        <thead><tr className="bg-white/[0.02]">
+        <thead><tr className="bg-veil/[0.02]">
           <th className="th w-14">№ стр</th><th className="th">Наименование</th>
           <th className="th text-right">На начало</th><th className="th text-right">На конец</th>
         </tr></thead>
         <tbody>
           {rows.map((r, i) => (
-            <tr key={i} className={r.amount === null ? "bg-white/[0.05]" : r.level === 0 ? "bg-white/[0.03]" : "hover:bg-white/[0.02]"}>
+            <tr key={i} className={r.amount === null ? "bg-veil/[0.05]" : r.level === 0 ? "bg-veil/[0.03]" : "hover:bg-veil/[0.02]"}>
               <td className="td font-mono text-slate-500">{r.code}</td>
-              <td className={`td ${r.level === 0 ? "font-semibold text-white" : r.level === 1 ? "text-slate-300 pl-6" : "text-slate-400 pl-10"}`}>{r.name}</td>
+              <td className={`td ${r.level === 0 ? "font-semibold text-ink" : r.level === 1 ? "text-slate-300 pl-6" : "text-slate-400 pl-10"}`}>{r.name}</td>
               <td className="td text-right tabular-nums text-slate-400">{r.opening === null ? "" : money(r.opening)}</td>
-              <td className={`td text-right tabular-nums ${r.level === 0 ? "font-semibold text-white" : "text-slate-300"}`}>{r.amount === null ? "" : money(r.amount)}</td>
+              <td className={`td text-right tabular-nums ${r.level === 0 ? "font-semibold text-ink" : "text-slate-300"}`}>{r.amount === null ? "" : money(r.amount)}</td>
             </tr>
           ))}
         </tbody>
@@ -256,10 +256,10 @@ function Counterparties() {
   return (
     <Card className="!p-0 overflow-hidden">
       <div className="p-4 border-b border-line">
-        <h3 className="font-semibold text-white mb-3">Дебиторская и кредиторская задолженность (сводно)</h3>
+        <h3 className="font-semibold text-ink mb-3">Дебиторская и кредиторская задолженность (сводно)</h3>
         <div className="flex flex-wrap items-center gap-2">
           {[["", "Все"], ...ORG_CATS.map((c) => [c.v, c.l])].map(([v, l]) => (
-            <button key={v} onClick={() => setCat(v)} className={`chip ${cat === v ? "bg-accent/15 text-accent-soft border border-accent/25" : "bg-white/5 text-slate-400 border border-line"}`}>{l}</button>
+            <button key={v} onClick={() => setCat(v)} className={`chip ${cat === v ? "bg-accent/15 text-accent-soft border border-accent/25" : "bg-veil/5 text-slate-400 border border-line"}`}>{l}</button>
           ))}
           <input className="input max-w-xs ml-auto" placeholder="Поиск по названию или ИНН…" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
@@ -267,7 +267,7 @@ function Counterparties() {
       </div>
       {!rows.length ? <EmptyState text="Нет оборотов и сальдо за период" /> : (
         <div className="overflow-x-auto"><table className="w-full min-w-[900px] text-sm">
-          <thead><tr className="bg-white/[0.02]">
+          <thead><tr className="bg-veil/[0.02]">
             <th className="th">Контрагент</th>
             <th className="th text-right">Нач. Дт</th><th className="th text-right">Нач. Кт</th>
             <th className="th text-right">Об. Дт</th><th className="th text-right">Об. Кт</th>
@@ -275,18 +275,18 @@ function Counterparties() {
           </tr></thead>
           <tbody>
             {rows.map((r: any) => (
-              <tr key={r.id} className="hover:bg-white/[0.02]">
-                <td className="td text-white max-w-[220px] truncate">{r.name}</td>
+              <tr key={r.id} className="hover:bg-veil/[0.02]">
+                <td className="td text-ink max-w-[220px] truncate">{r.name}</td>
                 <td className="td text-right">{r.open_debit ? money(r.open_debit) : "—"}</td>
                 <td className="td text-right">{r.open_credit ? money(r.open_credit) : "—"}</td>
                 <td className="td text-right text-emerald-300">{r.turn_debit ? money(r.turn_debit) : "—"}</td>
                 <td className="td text-right text-rose-300">{r.turn_credit ? money(r.turn_credit) : "—"}</td>
-                <td className="td text-right font-semibold text-white">{r.end_debit ? money(r.end_debit) : "—"}</td>
-                <td className="td text-right font-semibold text-white">{r.end_credit ? money(r.end_credit) : "—"}</td>
+                <td className="td text-right font-semibold text-ink">{r.end_debit ? money(r.end_debit) : "—"}</td>
+                <td className="td text-right font-semibold text-ink">{r.end_credit ? money(r.end_credit) : "—"}</td>
               </tr>
             ))}
-            <tr className="bg-white/[0.03] font-semibold">
-              <td className="td text-white">ВСЕГО</td>
+            <tr className="bg-veil/[0.03] font-semibold">
+              <td className="td text-ink">ВСЕГО</td>
               <td className="td text-right">{money(t.open_debit)}</td><td className="td text-right">{money(t.open_credit)}</td>
               <td className="td text-right">{money(t.turn_debit)}</td><td className="td text-right">{money(t.turn_credit)}</td>
               <td className="td text-right">{money(t.end_debit)}</td><td className="td text-right">{money(t.end_credit)}</td>
@@ -304,10 +304,10 @@ function LoansReport() {
   if (loading || !data) return <Spinner />;
   return (
     <Card className="!p-0 overflow-hidden">
-      <div className="p-4 border-b border-line"><h3 className="font-semibold text-white">Задолженность по выданным и полученным займам</h3></div>
+      <div className="p-4 border-b border-line"><h3 className="font-semibold text-ink">Задолженность по выданным и полученным займам</h3></div>
       {!data.rows.length ? <EmptyState text="Займы не заведены" /> : (
         <div className="overflow-x-auto"><table className="w-full min-w-[820px] text-sm">
-          <thead><tr className="bg-white/[0.02]">
+          <thead><tr className="bg-veil/[0.02]">
             <th className="th">Контрагент</th><th className="th">Тип</th>
             <th className="th text-right">Нач. Дт</th><th className="th text-right">Нач. Кт</th>
             <th className="th text-right">Об. Дт</th><th className="th text-right">Об. Кт</th>
@@ -315,18 +315,18 @@ function LoansReport() {
           </tr></thead>
           <tbody>
             {data.rows.map((r: any) => (
-              <tr key={r.id} className="hover:bg-white/[0.02]">
-                <td className="td text-white">{r.name}</td>
+              <tr key={r.id} className="hover:bg-veil/[0.02]">
+                <td className="td text-ink">{r.name}</td>
                 <td className="td text-slate-400">{r.direction === "given" ? "Выданный" : "Полученный"}</td>
                 <td className="td text-right">{money(r.open_debit)}</td><td className="td text-right">{money(r.open_credit)}</td>
                 <td className="td text-right text-emerald-300">{money(r.turn_debit)}</td>
                 <td className="td text-right text-rose-300">{money(r.turn_credit)}</td>
-                <td className="td text-right font-semibold text-white">{money(r.end_debit)}</td>
-                <td className="td text-right font-semibold text-white">{money(r.end_credit)}</td>
+                <td className="td text-right font-semibold text-ink">{money(r.end_debit)}</td>
+                <td className="td text-right font-semibold text-ink">{money(r.end_credit)}</td>
               </tr>
             ))}
-            <tr className="bg-white/[0.03] font-semibold">
-              <td className="td text-white" colSpan={2}>ВСЕГО</td>
+            <tr className="bg-veil/[0.03] font-semibold">
+              <td className="td text-ink" colSpan={2}>ВСЕГО</td>
               <td className="td text-right">{money(data.totals.open_debit)}</td><td className="td text-right">{money(data.totals.open_credit)}</td>
               <td className="td text-right">{money(data.totals.turn_debit)}</td><td className="td text-right">{money(data.totals.turn_credit)}</td>
               <td className="td text-right">{money(data.totals.end_debit)}</td><td className="td text-right">{money(data.totals.end_credit)}</td>
@@ -344,9 +344,9 @@ function TaxesReport() {
   if (loading || !data) return <Spinner />;
   return (
     <Card className="!p-0 overflow-hidden">
-      <div className="p-4 border-b border-line"><h3 className="font-semibold text-white">Состояние задолженности по видам налогов</h3></div>
+      <div className="p-4 border-b border-line"><h3 className="font-semibold text-ink">Состояние задолженности по видам налогов</h3></div>
       <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-sm">
-        <thead><tr className="bg-white/[0.02]">
+        <thead><tr className="bg-veil/[0.02]">
           <th className="th">Наименование налога</th>
           <th className="th text-right">Долг на начало</th><th className="th text-right">Начислено</th>
           <th className="th text-right">Оплачено</th><th className="th text-right">Долг на конец</th>
@@ -354,17 +354,17 @@ function TaxesReport() {
         </tr></thead>
         <tbody>
           {data.rows.map((r: any) => (
-            <tr key={r.id} className="hover:bg-white/[0.02]">
-              <td className="td text-white">{r.name}{r.auto && <span className="chip ml-2 bg-accent/15 text-accent-soft border border-accent/25">авто</span>}</td>
+            <tr key={r.id} className="hover:bg-veil/[0.02]">
+              <td className="td text-ink">{r.name}{r.auto && <span className="chip ml-2 bg-accent/15 text-accent-soft border border-accent/25">авто</span>}</td>
               <td className="td text-right">{money(r.debt_start)}</td>
               <td className="td text-right text-amber-300">{money(r.accrued)}</td>
               <td className="td text-right text-emerald-300">{money(r.paid)}</td>
-              <td className="td text-right font-semibold text-white">{money(r.debt_end)}</td>
+              <td className="td text-right font-semibold text-ink">{money(r.debt_end)}</td>
               <td className="td text-right text-slate-400">{r.overpay ? money(r.overpay) : "—"}</td>
             </tr>
           ))}
-          <tr className="bg-white/[0.03] font-semibold">
-            <td className="td text-white">ИТОГО</td>
+          <tr className="bg-veil/[0.03] font-semibold">
+            <td className="td text-ink">ИТОГО</td>
             <td className="td text-right">{money(data.totals.start)}</td>
             <td className="td text-right">{money(data.totals.accrued)}</td>
             <td className="td text-right">{money(data.totals.paid)}</td>
@@ -397,14 +397,14 @@ function DailyBalance() {
     {loading || !data ? <Spinner /> : (
     <Card className="!p-0 overflow-hidden">
       <div className="p-4 border-b border-line flex flex-wrap items-center justify-between gap-3">
-        <h3 className="font-semibold text-white">Остаток денежных средств по дням и счетам</h3>
+        <h3 className="font-semibold text-ink">Остаток денежных средств по дням и счетам</h3>
         <div className="flex items-center gap-3">
-          <div className="flex gap-1 rounded-xl bg-white/5 border border-line p-1">
+          <div className="flex gap-1 rounded-xl bg-veil/5 border border-line p-1">
             {["UZS", "USD"].map((c) => (
-              <button key={c} onClick={() => setCurr(c)} className={`px-3 py-1 rounded-lg text-xs font-semibold ${curr === c ? "bg-accent text-white" : "text-slate-400 hover:text-white"}`}>{c}</button>
+              <button key={c} onClick={() => setCurr(c)} className={`px-3 py-1 rounded-lg text-xs font-semibold ${curr === c ? "bg-accent text-white" : "text-slate-400 hover:text-ink"}`}>{c}</button>
             ))}
           </div>
-          <span className="text-sm text-slate-400">На конец: <b className="text-white">{m(data.final)}</b></span>
+          <span className="text-sm text-slate-400">На конец: <b className="text-ink">{m(data.final)}</b></span>
         </div>
       </div>
       <div className="overflow-x-auto max-h-[65vh]">
@@ -419,18 +419,18 @@ function DailyBalance() {
             </tr>
           </thead>
           <tbody>
-            <tr className="bg-white/[0.03]">
-              <td className="td font-semibold text-white">Остаток на начало</td>
+            <tr className="bg-veil/[0.03]">
+              <td className="td font-semibold text-ink">Остаток на начало</td>
               <td className="td"></td><td className="td"></td>
-              <td className="td text-right font-semibold text-white border-r border-line tabular-nums">{m(data.opening.total)}</td>
+              <td className="td text-right font-semibold text-ink border-r border-line tabular-nums">{m(data.opening.total)}</td>
               {data.columns.map((c: any) => <td key={c.key} className="td text-right text-slate-400 tabular-nums">{m(data.opening.cols[c.key] || 0)}</td>)}
             </tr>
             {data.rows.map((r: any, i: number) => (
-              <tr key={i} className="hover:bg-white/[0.02]">
+              <tr key={i} className="hover:bg-veil/[0.02]">
                 <td className="td">{new Date(r.date).toLocaleDateString("ru-RU")}</td>
                 <td className="td text-right text-emerald-300 tabular-nums">{r.income ? m(r.income) : "—"}</td>
                 <td className="td text-right text-rose-300 tabular-nums">{r.expense ? m(r.expense) : "—"}</td>
-                <td className="td text-right font-semibold text-white border-r border-line tabular-nums">{m(r.closing)}</td>
+                <td className="td text-right font-semibold text-ink border-r border-line tabular-nums">{m(r.closing)}</td>
                 {data.columns.map((c: any) => <td key={c.key} className="td text-right text-slate-400 tabular-nums">{m(r.cols[c.key] || 0)}</td>)}
               </tr>
             ))}
@@ -452,16 +452,16 @@ function GpTurnover() {
   return (
     <Card className="!p-0 overflow-hidden">
       <div className="p-4 border-b border-line flex flex-wrap items-center justify-between gap-3">
-        <h3 className="font-semibold text-white">ГП оборот: остаток на начало + произведено − реализовано = остаток на конец</h3>
+        <h3 className="font-semibold text-ink">ГП оборот: остаток на начало + произведено − реализовано = остаток на конец</h3>
         <label className="flex items-center gap-2 text-sm text-slate-400">
-          <input type="checkbox" checked={byDiv} onChange={(e) => setByDiv(e.target.checked)} className="h-4 w-4 accent-[#5b8cff]" />
+          <input type="checkbox" checked={byDiv} onChange={(e) => setByDiv(e.target.checked)} className="h-4 w-4 accent-accent" />
           в разрезе объектов
         </label>
       </div>
       {loading || !data ? <Spinner /> : !data.rows.length ? <EmptyState text="Нет движения ГП" /> : (
         <div className="overflow-x-auto"><table className="w-full min-w-[1000px] text-sm">
           <thead>
-            <tr className="bg-white/[0.02]">
+            <tr className="bg-veil/[0.02]">
               <th className="th" rowSpan={2}>Объект</th>
               <th className="th" rowSpan={2}>Продукция</th>
               <th className="th text-center" colSpan={2}>Остаток нач.</th>
@@ -470,7 +470,7 @@ function GpTurnover() {
               <th className="th text-center" colSpan={2}>Реализовано (020)</th>
               <th className="th text-center" colSpan={2}>Остаток кон.</th>
             </tr>
-            <tr className="bg-white/[0.02]">
+            <tr className="bg-veil/[0.02]">
               <th className="th text-right">кол-во</th><th className="th text-right">сумма</th>
               <th className="th text-right">кол-во</th><th className="th text-right">сумма</th>
               <th className="th text-right bg-amber-500/[0.06]">кол-во</th>
@@ -482,21 +482,21 @@ function GpTurnover() {
           </thead>
           <tbody>
             {data.rows.map((r: any, i: number) => (
-              <tr key={i} className="hover:bg-white/[0.02]">
+              <tr key={i} className="hover:bg-veil/[0.02]">
                 <td className="td text-slate-400 whitespace-nowrap">{r.division}</td>
-                <td className="td text-white">{r.name}</td>
+                <td className="td text-ink">{r.name}</td>
                 <td className="td text-right">{n(r.open_qty)}</td><td className="td text-right text-slate-400">{money(r.open_val)}</td>
                 <td className="td text-right text-emerald-300">{n(r.prod_qty)}</td><td className="td text-right text-slate-400">{money(r.prod_val)}</td>
                 <td className="td text-right bg-amber-500/[0.04]">{n(r.total_qty)}</td>
                 <td className="td text-right text-slate-400 bg-amber-500/[0.04]">{money(r.total_val)}</td>
                 <td className="td text-right text-amber-300 bg-amber-500/[0.04]">{money(r.avg_cost)}</td>
                 <td className="td text-right text-rose-300">{n(r.sold_qty)}</td><td className="td text-right text-slate-400">{money(r.sold_val)}</td>
-                <td className="td text-right font-semibold text-white">{n(r.close_qty)}</td><td className="td text-right font-semibold text-white">{money(r.close_val)}</td>
+                <td className="td text-right font-semibold text-ink">{n(r.close_qty)}</td><td className="td text-right font-semibold text-ink">{money(r.close_val)}</td>
               </tr>
             ))}
           </tbody>
           <tfoot>
-            <tr className="border-t border-line bg-white/[0.03] font-semibold text-white">
+            <tr className="border-t border-line bg-veil/[0.03] font-semibold text-ink">
               <td className="td" colSpan={2}>ИТОГО</td>
               <td className="td text-right">{n(sum(data.rows, "open_qty"))}</td>
               <td className="td text-right">{money(sum(data.rows, "open_val"))}</td>
@@ -533,11 +533,11 @@ function CostReport() {
             <Stat label="Сырьё в расходе" value={money(data.materials.raw)} tone="text-amber-300" />
             <Stat label="Запчасти" value={money(data.materials.spare)} tone="text-violet2" />
             <Stat label="Солярка / ГСМ" value={money(data.materials.fuel)} tone="text-accent-soft" />
-            <Stat label="Выпуск, ед." value={qn(data.produced_qty)} tone="text-white" />
+            <Stat label="Выпуск, ед." value={qn(data.produced_qty)} tone="text-ink" />
           </div>
           <Card className="!p-0 overflow-hidden">
             <div className="p-4 border-b border-line">
-              <h3 className="font-semibold text-white">Себестоимость готовой продукции (С-сть)</h3>
+              <h3 className="font-semibold text-ink">Себестоимость готовой продукции (С-сть)</h3>
               <p className="text-xs text-slate-500 mt-1">
                 В себестоимость входят только производственные затраты: сырьё, запчасти,
                 солярка и общие производственные расходы. Расходы по реализации,
@@ -549,7 +549,7 @@ function CostReport() {
             {!data.rows.length ? <EmptyState text="Нет данных" /> : (
               <div className="overflow-x-auto"><table className="w-full min-w-[1420px] text-sm">
                 <thead>
-                  <tr className="bg-white/[0.02]">
+                  <tr className="bg-veil/[0.02]">
                     <th className="th" rowSpan={2}>Марка</th>
                     <th className="th text-right" rowSpan={2}>Объём</th>
                     <th className="th text-center border-l border-line bg-emerald-500/[0.06]" colSpan={5}>
@@ -560,7 +560,7 @@ function CostReport() {
                     </th>
                     <th className="th text-center border-l border-line" colSpan={4}>Реализация</th>
                   </tr>
-                  <tr className="bg-white/[0.02]">
+                  <tr className="bg-veil/[0.02]">
                     <th className="th text-right border-l border-line">Сырьё</th>
                     <th className="th text-right">Запчасти</th>
                     <th className="th text-right">Солярка</th>
@@ -578,8 +578,8 @@ function CostReport() {
                   </tr>
                 </thead>
                 <tbody>{data.rows.map((r: any, i: number) => (
-                  <tr key={i} className="hover:bg-white/[0.02]">
-                    <td className="td text-white whitespace-nowrap">{r.code && <span className="text-slate-500 font-mono mr-1.5">{r.code}</span>}{r.name}</td>
+                  <tr key={i} className="hover:bg-veil/[0.02]">
+                    <td className="td text-ink whitespace-nowrap">{r.code && <span className="text-slate-500 font-mono mr-1.5">{r.code}</span>}{r.name}</td>
                     <td className="td text-right">{withUnit(r.produced, r.unit)}</td>
                     <td className="td text-right text-slate-400 border-l border-line bg-emerald-500/[0.04]">{money(r.raw_cost)}</td>
                     <td className="td text-right text-slate-400 bg-emerald-500/[0.04]">{money(r.spare_cost)}</td>
@@ -593,7 +593,7 @@ function CostReport() {
                     <td className="td text-right text-slate-300">{money(r.full_unit_cost)}</td>
                     <td className="td text-right border-l border-line">{money(r.avg_price)}</td>
                     <td className={`td text-right ${r.diff >= 0 ? "text-emerald-300" : "text-rose-300"}`}>{money(r.diff)}</td>
-                    <td className="td text-right font-semibold text-white">{money(r.profit)}</td>
+                    <td className="td text-right font-semibold text-ink">{money(r.profit)}</td>
                     <td className={`td text-right ${r.margin >= 0 ? "text-emerald-300" : "text-rose-300"}`}>{r.margin}%</td>
                   </tr>
                 ))}</tbody>
@@ -620,9 +620,9 @@ function MatTurnover({ kind, title }: { kind: string; title: string }) {
   return (
     <Card className="!p-0 overflow-hidden">
       <div className="p-4 border-b border-line flex flex-wrap items-center justify-between gap-3">
-        <h3 className="font-semibold text-white">{title}: остаток нач. + приход − расход = остаток кон.</h3>
+        <h3 className="font-semibold text-ink">{title}: остаток нач. + приход − расход = остаток кон.</h3>
         <label className="flex items-center gap-2 text-sm text-slate-400">
-          <input type="checkbox" checked={byDiv} onChange={(e) => setByDiv(e.target.checked)} className="h-4 w-4 accent-[#5b8cff]" />
+          <input type="checkbox" checked={byDiv} onChange={(e) => setByDiv(e.target.checked)} className="h-4 w-4 accent-accent" />
           в разрезе дробилок
         </label>
       </div>
@@ -645,19 +645,19 @@ function MatTurnover({ kind, title }: { kind: string; title: string }) {
             </tr>
           </thead>
           <tbody>{data.rows.map((r: any, i: number) => (
-            <tr key={i} className="hover:bg-white/[0.02]">
+            <tr key={i} className="hover:bg-veil/[0.02]">
               <td className="td text-slate-400 whitespace-nowrap">{r.division}</td>
-              <td className="td text-white">{r.code && <span className="text-slate-500 font-mono mr-1.5">{r.code}</span>}{r.name}</td>
+              <td className="td text-ink">{r.code && <span className="text-slate-500 font-mono mr-1.5">{r.code}</span>}{r.name}</td>
               <td className="td text-right">{qn(r.open_qty)}</td><td className="td text-right text-slate-400">{money(r.open_val)}</td>
               <td className="td text-right text-emerald-300">{qn(r.recv_qty)}</td><td className="td text-right text-slate-400">{money(r.recv_val)}</td>
               <td className="td text-right text-rose-300">{qn(r.iss_qty)}</td><td className="td text-right text-slate-400">{money(r.iss_val)}</td>
-              <td className="td text-right font-semibold text-white">{qn(r.close_qty)}</td><td className="td text-right font-semibold text-white">{money(r.close_val)}</td>
+              <td className="td text-right font-semibold text-ink">{qn(r.close_qty)}</td><td className="td text-right font-semibold text-ink">{money(r.close_val)}</td>
             </tr>
           ))}</tbody>
           {/* количества суммируем только внутри одного объекта-номенклатуры,
               поэтому в итоге показываем деньги — они сопоставимы всегда */}
           <tfoot className="sticky bottom-0 bg-base-850">
-            <tr className="border-t-2 border-line font-semibold text-white">
+            <tr className="border-t-2 border-line font-semibold text-ink">
               <td className="td" colSpan={2}>ИТОГО</td>
               <td className="td" />
               <td className="td text-right tabular-nums">{money(sum(data.rows, "open_val"))}</td>
@@ -689,7 +689,7 @@ function FxDiff() {
       ))}
       <Card className="!p-0 overflow-hidden">
         <div className="p-4 border-b border-line">
-          <h3 className="font-semibold text-white">Расчёт валютных курсовых разниц</h3>
+          <h3 className="font-semibold text-ink">Расчёт валютных курсовых разниц</h3>
           <p className="text-xs text-slate-500 mt-1">
             В долларах США, по курсу на конец периода {fmtMoney(data.rate)}.
             Задолженность переоценивается по каждому контрагенту отдельно,
@@ -697,17 +697,17 @@ function FxDiff() {
           </p>
         </div>
         <table className="w-full">
-          <thead><tr className="bg-white/[0.02]"><th className="th">Наименование</th><th className="th text-right">Доходы</th><th className="th text-right">Убытки</th></tr></thead>
+          <thead><tr className="bg-veil/[0.02]"><th className="th">Наименование</th><th className="th text-right">Доходы</th><th className="th text-right">Убытки</th></tr></thead>
           <tbody>
             {data.rows.map((r: any, i: number) => (
-              <tr key={i} className="hover:bg-white/[0.02]">
-                <td className="td text-white">{r.name}</td>
+              <tr key={i} className="hover:bg-veil/[0.02]">
+                <td className="td text-ink">{r.name}</td>
                 <td className="td text-right text-emerald-300 tabular-nums">{r.income ? usd(r.income) : "—"}</td>
                 <td className="td text-right text-rose-300 tabular-nums">{r.loss ? usd(r.loss) : "—"}</td>
               </tr>
             ))}
-            <tr className="bg-white/[0.03] font-semibold">
-              <td className="td text-white">ИТОГО</td>
+            <tr className="bg-veil/[0.03] font-semibold">
+              <td className="td text-ink">ИТОГО</td>
               <td className="td text-right text-emerald-300 tabular-nums">{usd(data.total_income)}</td>
               <td className="td text-right text-rose-300 tabular-nums">{usd(data.total_loss)}</td>
             </tr>
@@ -743,7 +743,7 @@ function FxDocuments() {
     <Card className="!p-0 overflow-hidden mt-4">
       <div className="p-4 border-b border-line flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 className="font-semibold text-white">Расшифровка по документам</h3>
+          <h3 className="font-semibold text-ink">Расшифровка по документам</h3>
           <p className="text-xs text-slate-500 mt-1">
             Строка «Дебиторская и кредиторская задолженность» — по каждому контрагенту
             и документу. Деньги и займы сюда не входят: они переоцениваются не по
@@ -752,13 +752,13 @@ function FxDocuments() {
         </div>
         <label className="flex items-center gap-2 text-sm text-slate-400 whitespace-nowrap">
           <input type="checkbox" checked={onlyPeriod} onChange={(e) => setOnlyPeriod(e.target.checked)}
-            className="h-4 w-4 accent-[#5b8cff]" />
+            className="h-4 w-4 accent-accent" />
           только с документами периода
         </label>
       </div>
       {!orgs.length ? <EmptyState text="Нет переоценённых контрагентов за период" /> : (
         <div className="overflow-x-auto"><table className="w-full min-w-[880px] text-sm">
-          <thead><tr className="bg-white/[0.02]">
+          <thead><tr className="bg-veil/[0.02]">
             <th className="th">Контрагент / документ</th>
             <th className="th">Дата</th>
             <th className="th text-right">Сумма, сум</th>
@@ -769,12 +769,12 @@ function FxDocuments() {
           <tbody>
             {orgs.map((o: any) => (
               <Fragment key={o.id}>
-                <tr className="bg-white/[0.03] cursor-pointer hover:bg-white/[0.05]"
+                <tr className="bg-veil/[0.03] cursor-pointer hover:bg-veil/[0.05]"
                     onClick={() => setOpen((s) => ({ ...s, [o.id]: !s[o.id] }))}>
-                  <td className="td font-semibold text-white">
+                  <td className="td font-semibold text-ink">
                     <span className="text-slate-500 mr-2">{open[o.id] ? "▾" : "▸"}</span>
                     {o.name}
-                    <span className="chip ml-2 bg-white/5 text-slate-500 border border-line text-[10px]">
+                    <span className="chip ml-2 bg-veil/5 text-slate-500 border border-line text-[10px]">
                       {o.docs.length} док.
                     </span>
                   </td>
@@ -787,7 +787,7 @@ function FxDocuments() {
                   </td>
                 </tr>
                 {open[o.id] && o.docs.map((r: any, i: number) => (
-                  <tr key={i} className={r.in_period ? "hover:bg-white/[0.02]" : "text-slate-500 hover:bg-white/[0.02]"}>
+                  <tr key={i} className={r.in_period ? "hover:bg-veil/[0.02]" : "text-slate-500 hover:bg-veil/[0.02]"}>
                     <td className="td pl-10">
                       <span className="text-slate-400">{r.kind}</span>
                       <span className="text-slate-600 mx-1.5">·</span>
@@ -808,8 +808,8 @@ function FxDocuments() {
                 ))}
               </Fragment>
             ))}
-            <tr className="bg-white/[0.03] font-semibold">
-              <td className="td text-white" colSpan={5}>ИТОГО по задолженности</td>
+            <tr className="bg-veil/[0.03] font-semibold">
+              <td className="td text-ink" colSpan={5}>ИТОГО по задолженности</td>
               <td className={`td text-right tabular-nums ${data.totals.net >= 0 ? "text-emerald-300" : "text-rose-300"}`}>
                 {usd(data.totals.net)}
               </td>
@@ -829,8 +829,8 @@ function Warehouse({ url, title }: { url: string; title: string }) {
   return (
     <Card className="!p-0 overflow-hidden">
       <div className="p-4 border-b border-line flex justify-between">
-        <h3 className="font-semibold text-white">{title}</h3>
-        <span className="text-sm text-slate-400">Итого: <b className="text-white">{money(data.total_value)}</b></span>
+        <h3 className="font-semibold text-ink">{title}</h3>
+        <span className="text-sm text-slate-400">Итого: <b className="text-ink">{money(data.total_value)}</b></span>
       </div>
       {!data.rows.length ? <EmptyState text="Пусто" /> : (
         <div className="overflow-x-auto max-h-[65vh]"><table className="w-full">
@@ -840,13 +840,13 @@ function Warehouse({ url, title }: { url: string; title: string }) {
             <th className="th text-right">Стоимость</th>
           </tr></thead>
           <tbody>{data.rows.map((r: any, i: number) => (
-            <tr key={i} className="hover:bg-white/[0.02]">
+            <tr key={i} className="hover:bg-veil/[0.02]">
               <td className="td text-slate-400 whitespace-nowrap">{r.division}</td>
               <td className="td font-mono text-slate-400">{r.code}</td>
-              <td className="td text-white">{r.name}</td>
+              <td className="td text-ink">{r.name}</td>
               <td className="td text-right tabular-nums">{withUnit(r.stock_qty, r.unit)}</td>
               <td className="td text-right tabular-nums">{money(r.avg_cost)}</td>
-              <td className="td text-right font-semibold text-white tabular-nums">{money(r.value)}</td>
+              <td className="td text-right font-semibold text-ink tabular-nums">{money(r.value)}</td>
             </tr>
           ))}</tbody>
         </table></div>
@@ -890,7 +890,7 @@ function CashFlowBody({ data, money, div }: { data: any; money: (v: number) => s
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
         {(["bank", "kassa"] as const).map((k) => (
           <Card key={k}>
-            <h3 className="font-semibold text-white mb-2">{k === "bank" ? "Банк" : "Касса"}</h3>
+            <h3 className="font-semibold text-ink mb-2">{k === "bank" ? "Банк" : "Касса"}</h3>
             <Line l="Остаток на начало" v={money(data[k].open)} />
             <Line l="Приход" v={money(data[k].in)} />
             <Line l="Расход" v={money(data[k].out)} />
@@ -900,7 +900,7 @@ function CashFlowBody({ data, money, div }: { data: any; money: (v: number) => s
       </div>
       <Card className="!p-0 overflow-hidden">
         <div className="p-4 border-b border-line">
-          <h3 className="font-semibold text-white">Движение денежных средств по разделам</h3>
+          <h3 className="font-semibold text-ink">Движение денежных средств по разделам</h3>
           <p className="text-xs text-slate-500 mt-1">
             Раздел (операционная / инвестиционная / финансовая) задаётся у кода ДДС
             в «Справочниках».
@@ -909,27 +909,27 @@ function CashFlowBody({ data, money, div }: { data: any; money: (v: number) => s
         {!data.by_code.length ? <EmptyState text="Нет операций за период" /> : (
           <div className="overflow-x-auto"><table className="w-full min-w-[900px] text-sm">
             <thead>
-              <tr className="bg-white/[0.02]">
+              <tr className="bg-veil/[0.02]">
                 <th className="th w-24" rowSpan={2}>Код</th><th className="th" rowSpan={2}>Наименование</th>
                 <th className="th text-center border-l border-line" colSpan={2}>БАНК</th>
                 <th className="th text-center border-l border-line" colSpan={2}>КАССА</th>
                 <th className="th text-center border-l border-line" colSpan={2}>ВСЕГО</th>
               </tr>
-              <tr className="bg-white/[0.02]">
+              <tr className="bg-veil/[0.02]">
                 <th className="th text-right border-l border-line">приход</th><th className="th text-right">расход</th>
                 <th className="th text-right border-l border-line">приход</th><th className="th text-right">расход</th>
                 <th className="th text-right border-l border-line">приход</th><th className="th text-right">расход</th>
               </tr>
             </thead>
             <tbody>
-              <tr className="bg-white/[0.04] font-semibold text-white">
+              <tr className="bg-veil/[0.04] font-semibold text-ink">
                 <td className="td" colSpan={6}>ОСТАТОК ДЕНЕЖНЫХ СРЕДСТВ на начало периода</td>
                 <td className="td text-right border-l border-line" colSpan={2}>{money(data.total.open)}</td>
               </tr>
               {data.sections.map((sec: any) => (
                 <Fragment key={sec.key}>
-                  <tr className="bg-white/[0.04]">
-                    <td className="td font-semibold text-white" colSpan={2}>{sec.label}</td>
+                  <tr className="bg-veil/[0.04]">
+                    <td className="td font-semibold text-ink" colSpan={2}>{sec.label}</td>
                     <td className="td" colSpan={4}></td>
                     <td className="td text-right font-semibold text-emerald-300 border-l border-line">{money(sec.in)}</td>
                     <td className="td text-right font-semibold text-rose-300">{money(sec.out)}</td>
@@ -938,21 +938,21 @@ function CashFlowBody({ data, money, div }: { data: any; money: (v: number) => s
                     <tr><td className="td text-slate-600 text-xs" colSpan={8}>операций нет</td></tr>
                   )}
                   {sec.rows.map((r: any, i: number) => (
-                    <tr key={i} className="hover:bg-white/[0.02]">
+                    <tr key={i} className="hover:bg-veil/[0.02]">
                       <td className="td font-mono text-slate-400 pl-6">{r.code}</td>
                       <td className="td">{r.name}</td>
                       <td className="td text-right text-emerald-300 border-l border-line">{r.bank_in ? money(r.bank_in) : "—"}</td>
                       <td className="td text-right text-rose-300">{r.bank_out ? money(r.bank_out) : "—"}</td>
                       <td className="td text-right text-emerald-300 border-l border-line">{r.kassa_in ? money(r.kassa_in) : "—"}</td>
                       <td className="td text-right text-rose-300">{r.kassa_out ? money(r.kassa_out) : "—"}</td>
-                      <td className="td text-right font-semibold text-white border-l border-line">{r.in ? money(r.in) : "—"}</td>
-                      <td className="td text-right font-semibold text-white">{r.out ? money(r.out) : "—"}</td>
+                      <td className="td text-right font-semibold text-ink border-l border-line">{r.in ? money(r.in) : "—"}</td>
+                      <td className="td text-right font-semibold text-ink">{r.out ? money(r.out) : "—"}</td>
                     </tr>
                   ))}
                 </Fragment>
               ))}
-              <tr className="bg-white/[0.03] font-semibold">
-                <td className="td text-white" colSpan={2}>ИТОГО ОБОРОТЫ</td>
+              <tr className="bg-veil/[0.03] font-semibold">
+                <td className="td text-ink" colSpan={2}>ИТОГО ОБОРОТЫ</td>
                 <td className="td text-right border-l border-line">{money(data.bank.in)}</td><td className="td text-right">{money(data.bank.out)}</td>
                 <td className="td text-right border-l border-line">{money(data.kassa.in)}</td><td className="td text-right">{money(data.kassa.out)}</td>
                 <td className="td text-right border-l border-line">{money(data.total.in)}</td><td className="td text-right">{money(data.total.out)}</td>
@@ -963,7 +963,7 @@ function CashFlowBody({ data, money, div }: { data: any; money: (v: number) => s
                   <td className={`td text-right border-l border-line ${data.fx >= 0 ? "text-emerald-300" : "text-rose-300"}`} colSpan={2}>{money(data.fx)}</td>
                 </tr>
               )}
-              <tr className="bg-white/[0.04] font-semibold text-white">
+              <tr className="bg-veil/[0.04] font-semibold text-ink">
                 <td className="td" colSpan={6}>ОСТАТОК ДЕНЕЖНЫХ СРЕДСТВ на конец периода</td>
                 <td className="td text-right border-l border-line" colSpan={2}>{money(data.total.end)}</td>
               </tr>
@@ -983,14 +983,14 @@ function CashFlowDivisions({ money }: { money: (v: number) => string }) {
   return (
     <Card className="!p-0 overflow-hidden mt-4">
       <div className="p-4 border-b border-line">
-        <h3 className="font-semibold text-white">Денежный поток по подразделениям</h3>
+        <h3 className="font-semibold text-ink">Денежный поток по подразделениям</h3>
         <p className="text-xs text-slate-500 mt-1">
           Разрез по объекту, указанному в операции. Выберите подразделение выше,
           чтобы раскрыть его коды ДДС.
         </p>
       </div>
       <div className="overflow-x-auto"><table className="w-full min-w-[820px] text-sm">
-        <thead><tr className="bg-white/[0.02]">
+        <thead><tr className="bg-veil/[0.02]">
           <th className="th">Подразделение</th>
           <th className="th text-right">Приход</th>
           <th className="th text-right">Расход</th>
@@ -1001,8 +1001,8 @@ function CashFlowDivisions({ money }: { money: (v: number) => string }) {
         </tr></thead>
         <tbody>
           {data.rows.map((r: any, i: number) => (
-            <tr key={i} className="hover:bg-white/[0.02]">
-              <td className="td text-white">{r.division}</td>
+            <tr key={i} className="hover:bg-veil/[0.02]">
+              <td className="td text-ink">{r.division}</td>
               <td className="td text-right text-emerald-300">{money(r.in)}</td>
               <td className="td text-right text-rose-300">{money(r.out)}</td>
               <td className={`td text-right font-semibold ${r.net >= 0 ? "text-emerald-300" : "text-rose-300"}`}>{money(r.net)}</td>
@@ -1011,7 +1011,7 @@ function CashFlowDivisions({ money }: { money: (v: number) => string }) {
               <td className="td text-right text-slate-400">{money(r.sections?.financing || 0)}</td>
             </tr>
           ))}
-          <tr className="bg-white/[0.03] font-semibold text-white">
+          <tr className="bg-veil/[0.03] font-semibold text-ink">
             <td className="td">ВСЕГО по предприятию</td>
             <td className="td text-right">{money(data.total.in)}</td>
             <td className="td text-right">{money(data.total.out)}</td>
@@ -1045,13 +1045,13 @@ function Expenses() {
       </div>
       <Card className="!p-0 overflow-hidden">
         <div className="p-4 border-b border-line flex flex-wrap items-center justify-between gap-3">
-          <h3 className="font-semibold text-white">Расходы по статьям</h3>
+          <h3 className="font-semibold text-ink">Расходы по статьям</h3>
           <div className="flex items-center gap-4">
             <label className="flex items-center gap-2 text-sm text-slate-400">
-              <input type="checkbox" checked={zero} onChange={(e) => setZero(e.target.checked)} className="h-4 w-4 accent-[#5b8cff]" />
+              <input type="checkbox" checked={zero} onChange={(e) => setZero(e.target.checked)} className="h-4 w-4 accent-accent" />
               показывать нулевые статьи
             </label>
-            <span className="text-sm text-slate-400">Итого: <b className="text-white">{money(g.total)}</b></span>
+            <span className="text-sm text-slate-400">Итого: <b className="text-ink">{money(g.total)}</b></span>
           </div>
         </div>
         {!data.rows.length ? <EmptyState text="Нет расходов за период" /> : (
@@ -1077,12 +1077,12 @@ function Expenses() {
             </thead>
             <tbody>
               {data.rows.map((r: any, i: number) => (
-                <tr key={i} className={r.skip ? "bg-white/[0.03] text-slate-500" : "hover:bg-white/[0.02]"}>
+                <tr key={i} className={r.skip ? "bg-veil/[0.03] text-slate-500" : "hover:bg-veil/[0.02]"}>
                   <td className="td font-mono text-slate-400">{r.code}</td>
                   <td className="td">
                     {r.name}
                     {r.skip && (
-                      <span className="chip ml-2 bg-white/5 text-slate-500 border border-line text-[10px]"
+                      <span className="chip ml-2 bg-veil/5 text-slate-500 border border-line text-[10px]"
                             title="Итоговая строка книги или покупка ТМЗ — в сумму отчёта и в ОФР не входит">
                         не суммируется
                       </span>
@@ -1096,13 +1096,13 @@ function Expenses() {
                   <td className="td text-right border-l border-line text-emerald-300 tabular-nums">{r.stock_uzs ? fmtMoney(r.stock_uzs) : "—"}</td>
                   <td className="td text-right text-violet2 tabular-nums">{r.service_uzs ? fmtMoney(r.service_uzs) : "—"}</td>
                   <td className="td text-right border-l border-line text-amber-300 tabular-nums">{r.accrued_uzs ? fmtMoney(r.accrued_uzs) : "—"}</td>
-                  <td className="td text-right border-l border-line font-semibold text-white tabular-nums">{fmtMoney(r.total_uzs)}</td>
+                  <td className="td text-right border-l border-line font-semibold text-ink tabular-nums">{fmtMoney(r.total_uzs)}</td>
                   <td className="td text-right text-slate-500 tabular-nums">{fmtMoney(r.total_usd)}</td>
                 </tr>
               ))}
             </tbody>
             <tfoot className="sticky bottom-0 bg-base-850">
-              <tr className="font-semibold text-white">
+              <tr className="font-semibold text-ink">
                 <td className="td" colSpan={3}>ИТОГО</td>
                 <td className="td text-right border-l border-line tabular-nums">{fmtMoney(t.bank_uzs)}</td>
                 <td className="td text-right tabular-nums">{fmtMoney(t.bank_usd)}</td>
@@ -1132,5 +1132,5 @@ function Stat({ label, value, tone, hint }: { label: string; value: string; tone
   );
 }
 function Line({ l, v, bold }: { l: string; v: string; bold?: boolean }) {
-  return <div className={`flex justify-between py-1 text-sm ${bold ? "border-t border-line mt-1 pt-2 font-semibold text-white" : "text-slate-400"}`}><span>{l}</span><span className="font-mono">{v}</span></div>;
+  return <div className={`flex justify-between py-1 text-sm ${bold ? "border-t border-line mt-1 pt-2 font-semibold text-ink" : "text-slate-400"}`}><span>{l}</span><span className="font-mono">{v}</span></div>;
 }

@@ -29,7 +29,7 @@ function Denied() {
     <div className="grid place-items-center py-32 text-center">
       <div>
         <div className="text-5xl mb-4 opacity-30">🔒</div>
-        <h2 className="text-xl font-bold text-white">Доступ запрещён</h2>
+        <h2 className="text-xl font-bold text-ink">Доступ запрещён</h2>
         <p className="text-slate-400 mt-2 max-w-sm">
           У вас нет прав на этот раздел. Обратитесь к супер-администратору для назначения роли.
         </p>

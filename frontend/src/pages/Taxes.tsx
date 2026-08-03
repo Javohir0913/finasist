@@ -42,11 +42,11 @@ export default function Taxes() {
       <Card className="!p-0 overflow-hidden">
         {loading || !data ? <Spinner /> : !data.rows.length ? <EmptyState text="Нет данных" /> : (
           <div className="overflow-x-auto"><table className="w-full min-w-[820px]">
-            <thead><tr className="bg-white/[0.02]"><th className="th">Налог</th><th className="th text-right">Долг на начало</th><th className="th text-right">Начислено</th><th className="th text-right">Оплачено</th><th className="th text-right">Долг на конец</th><th className="th text-right">Переплата</th><th className="th"></th></tr></thead>
+            <thead><tr className="bg-veil/[0.02]"><th className="th">Налог</th><th className="th text-right">Долг на начало</th><th className="th text-right">Начислено</th><th className="th text-right">Оплачено</th><th className="th text-right">Долг на конец</th><th className="th text-right">Переплата</th><th className="th"></th></tr></thead>
             <tbody>
               {data.rows.map((t) => (
-                <tr key={t.id} className="hover:bg-white/[0.02]">
-                  <td className="td font-medium text-white">{t.name}</td>
+                <tr key={t.id} className="hover:bg-veil/[0.02]">
+                  <td className="td font-medium text-ink">{t.name}</td>
                   <td className="td text-right">{fmtNum(t.debt_start)}</td>
                   <td className="td text-right text-amber-300">
                     {fmtNum(t.accrued)}{" "}
@@ -57,7 +57,7 @@ export default function Taxes() {
                         : <span className="text-xs text-amber-300">без даты</span>}
                   </td>
                   <td className="td text-right text-emerald-300">{fmtNum(t.paid)}</td>
-                  <td className="td text-right font-semibold text-white">{fmtNum(t.debt_end)}</td>
+                  <td className="td text-right font-semibold text-ink">{fmtNum(t.debt_end)}</td>
                   <td className="td text-right text-slate-400">{t.overpay ? fmtNum(t.overpay) : "—"}</td>
                   <td className="td text-right whitespace-nowrap">
                     {can("taxes:edit") && <button onClick={() => { setEditing(t); setForm({ name: t.name, period: "", accrued_date: t.accrued_date || "", debt_start: t.debt_start, accrued: t.accrued, paid: t.paid }); setErr(""); setOpen(true); }} className="text-slate-500 hover:text-accent-soft mr-3">✎</button>}
@@ -65,8 +65,8 @@ export default function Taxes() {
                   </td>
                 </tr>
               ))}
-              <tr className="bg-white/[0.03] font-semibold">
-                <td className="td text-white">Итого</td>
+              <tr className="bg-veil/[0.03] font-semibold">
+                <td className="td text-ink">Итого</td>
                 <td className="td text-right">{fmtNum(data.totals.start)}</td>
                 <td className="td text-right text-amber-300">{fmtNum(data.totals.accrued)}</td>
                 <td className="td text-right text-emerald-300">{fmtNum(data.totals.paid)}</td>

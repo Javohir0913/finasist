@@ -41,7 +41,7 @@ export default function Directories() {
       />
       <div className="flex flex-wrap gap-2 mb-4">
         {TABS.map((t) => (
-          <button key={t.k} onClick={() => { setTab(t.k); setQ(""); }} className={`chip ${tab === t.k ? "bg-accent/15 text-accent-soft border border-accent/25" : "bg-white/5 text-slate-400 border border-line"}`}>{t.label}</button>
+          <button key={t.k} onClick={() => { setTab(t.k); setQ(""); }} className={`chip ${tab === t.k ? "bg-accent/15 text-accent-soft border border-accent/25" : "bg-veil/5 text-slate-400 border border-line"}`}>{t.label}</button>
         ))}
       </div>
       {tab === "divisions" ? <Divisions canEdit={canEdit} canDel={canDel} />
@@ -172,8 +172,8 @@ function BankAccounts({ canEdit, canDel }: { canEdit: boolean; canDel: boolean }
               </tr></thead>
               <tbody>
                 {data.map((b) => (
-                  <tr key={b.id} className="hover:bg-white/[0.02]">
-                    <td className="td text-white">{b.name}</td>
+                  <tr key={b.id} className="hover:bg-veil/[0.02]">
+                    <td className="td text-ink">{b.name}</td>
                     <td className="td font-mono text-slate-400">{b.account_no || "—"}</td>
                     <td className="td text-slate-400">{b.bank_name || "—"}</td>
                     <td className="td font-mono text-slate-400">{b.mfo || "—"}</td>
@@ -252,8 +252,8 @@ function CashRegisters({ canEdit, canDel }: { canEdit: boolean; canDel: boolean 
               </tr></thead>
               <tbody>
                 {data.map((c) => (
-                  <tr key={c.id} className="hover:bg-white/[0.02]">
-                    <td className="td text-white">{c.name}</td>
+                  <tr key={c.id} className="hover:bg-veil/[0.02]">
+                    <td className="td text-ink">{c.name}</td>
                     <td className="td text-slate-400">{c.division || "—"}</td>
                     <td className="td text-right tabular-nums">{fmtMoney(c.opening_uzs)}</td>
                     <td className="td text-right tabular-nums">{fmtMoney(c.opening_usd)}</td>
@@ -342,7 +342,7 @@ function CodeTable({ kind, q, setQ, canEdit, canDel }: { kind: string; q: string
               </tr></thead>
               <tbody>
                 {filtered.map((c) => (
-                  <tr key={c.id} className="hover:bg-white/[0.02]">
+                  <tr key={c.id} className="hover:bg-veil/[0.02]">
                     <td className="td font-mono text-slate-300">{c.code}</td>
                     <td className="td">{c.name}</td>
                     <td className="td">
@@ -424,12 +424,12 @@ function Divisions({ canEdit, canDel }: { canEdit: boolean; canDel: boolean }) {
                     onKeyDown={(e) => { if (e.key === "Enter") rename(); if (e.key === "Escape") setEdit(null); }} />
                   <div className="flex gap-1 shrink-0">
                     <button onClick={rename} className="text-emerald-300 hover:text-emerald-200">✓</button>
-                    <button onClick={() => setEdit(null)} className="text-slate-500 hover:text-white">✕</button>
+                    <button onClick={() => setEdit(null)} className="text-slate-500 hover:text-ink">✕</button>
                   </div>
                 </>
               ) : (
                 <>
-                  <span className="font-semibold text-white truncate">{d.name}</span>
+                  <span className="font-semibold text-ink truncate">{d.name}</span>
                   <div className="flex gap-2 shrink-0">
                     {canEdit && <button onClick={() => { setEdit(d); setDraft(d.name); setErr(""); }} className="text-slate-500 hover:text-accent-soft">✎</button>}
                     {canDel && <button onClick={() => remove(d.id)} className="text-slate-500 hover:text-rose-300">✕</button>}

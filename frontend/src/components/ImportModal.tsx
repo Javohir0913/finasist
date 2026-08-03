@@ -69,11 +69,11 @@ export default function ImportModal({
       {err && <div className="mb-4 rounded-xl bg-rose-500/12 border border-rose-500/25 text-rose-300 text-sm px-3.5 py-2.5">{err}</div>}
 
       {tpl && (
-        <div className="mb-4 rounded-xl bg-white/[0.03] border border-line p-3.5">
-          <div className="text-sm font-semibold text-white mb-1.5">Ожидаемые колонки первой строки</div>
+        <div className="mb-4 rounded-xl bg-veil/[0.03] border border-line p-3.5">
+          <div className="text-sm font-semibold text-ink mb-1.5">Ожидаемые колонки первой строки</div>
           <div className="flex flex-wrap gap-1.5">
             {tpl.columns.map((c: string) => (
-              <span key={c} className="chip bg-white/5 text-slate-400 border border-line text-[11px]">{c}</span>
+              <span key={c} className="chip bg-veil/5 text-slate-400 border border-line text-[11px]">{c}</span>
             ))}
           </div>
           <p className="text-xs text-slate-500 mt-2">

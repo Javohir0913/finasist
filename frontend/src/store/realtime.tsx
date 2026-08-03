@@ -92,7 +92,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
               }`}
             />
             <div className="min-w-0">
-              <div className="text-sm font-semibold text-white">{t.title}</div>
+              <div className="text-sm font-semibold text-ink">{t.title}</div>
               <div className="text-xs text-slate-400 truncate">{t.body}</div>
             </div>
           </div>

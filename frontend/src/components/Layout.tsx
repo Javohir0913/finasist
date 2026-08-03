@@ -4,6 +4,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import { NAV } from "../lib/nav";
 import { useAuth } from "../store/auth";
 import { useRealtime } from "../store/realtime";
+import ThemeToggle from "./ThemeToggle";
 
 export default function Layout({ children }: { children: ReactNode }) {
   const { user, logout, can } = useAuth();
@@ -39,7 +40,7 @@ export default function Layout({ children }: { children: ReactNode }) {
             P
           </div>
           <div className="leading-tight">
-            <div className="text-sm font-bold text-white">PROFIT DIVIDER</div>
+            <div className="text-sm font-bold text-ink">PROFIT DIVIDER</div>
             <div className="text-[10px] text-slate-500 tracking-wide">FINANCIAL PLATFORM</div>
           </div>
         </div>
@@ -61,8 +62,8 @@ export default function Layout({ children }: { children: ReactNode }) {
                       clsx(
                         "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all",
                         isActive
-                          ? "bg-accent/15 text-white border border-accent/25 shadow-glow"
-                          : "text-slate-400 hover:text-white hover:bg-white/5 border border-transparent"
+                          ? "bg-accent/15 text-ink border border-accent/25 shadow-glow"
+                          : "text-slate-400 hover:text-ink hover:bg-veil/5 border border-transparent"
                       )
                     }
                   >
@@ -76,12 +77,12 @@ export default function Layout({ children }: { children: ReactNode }) {
         </nav>
 
         <div className="p-3 border-t border-line">
-          <div className="flex items-center gap-3 rounded-xl px-3 py-2.5 bg-white/5">
+          <div className="flex items-center gap-3 rounded-xl px-3 py-2.5 bg-veil/5">
             <div className="h-9 w-9 rounded-full bg-gradient-to-br from-violet2 to-accent grid place-items-center text-xs font-bold text-white">
               {initials}
             </div>
             <div className="min-w-0 flex-1">
-              <div className="text-sm font-semibold text-white truncate">{user?.full_name}</div>
+              <div className="text-sm font-semibold text-ink truncate">{user?.full_name}</div>
               <div className="text-[11px] text-slate-500 truncate">
                 {user?.is_superadmin ? "Супер-администратор" : user?.role?.name || "Без роли"}
               </div>
@@ -95,7 +96,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      {open && <div className="fixed inset-0 z-30 bg-black/60 lg:hidden" onClick={() => setOpen(false)} />}
+      {open && <div className="fixed inset-0 z-30 backdrop-veil lg:hidden" onClick={() => setOpen(false)} />}
 
       {/* Main */}
       <div className="flex flex-col min-h-screen">
@@ -110,12 +111,13 @@ export default function Layout({ children }: { children: ReactNode }) {
             <span
               className={clsx(
                 "chip",
-                connected ? "bg-emerald-500/12 text-emerald-300 border border-emerald-500/20" : "bg-white/5 text-slate-400 border border-line"
+                connected ? "bg-emerald-500/12 text-emerald-300 border border-emerald-500/20" : "bg-veil/5 text-slate-400 border border-line"
               )}
             >
               <span className={clsx("h-2 w-2 rounded-full", connected ? "bg-emerald2 animate-pulse-dot" : "bg-slate-500")} />
               {connected ? "Real-time" : "Оффлайн"}
             </span>
+            <ThemeToggle />
           </div>
         </header>
 

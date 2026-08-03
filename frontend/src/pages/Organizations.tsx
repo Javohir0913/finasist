@@ -103,7 +103,7 @@ export default function Organizations() {
 
       <div className="flex flex-wrap gap-2 mb-4 items-center">
         {[["", "Все"], ...ORG_CATS.map((c) => [c.v, c.l])].map(([v, l]) => (
-          <button key={v} onClick={() => setCat(v)} className={`chip ${cat === v ? "bg-accent/15 text-accent-soft border border-accent/25" : "bg-white/5 text-slate-400 border border-line"}`}>{l}</button>
+          <button key={v} onClick={() => setCat(v)} className={`chip ${cat === v ? "bg-accent/15 text-accent-soft border border-accent/25" : "bg-veil/5 text-slate-400 border border-line"}`}>{l}</button>
         ))}
         <input className="input max-w-xs ml-auto" placeholder="Поиск по названию или ИНН…" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
@@ -112,7 +112,7 @@ export default function Organizations() {
         {loading ? <Spinner /> : !data?.length ? <EmptyState text="Организации не найдены" /> : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[820px]">
-              <thead><tr className="bg-white/[0.02]">
+              <thead><tr className="bg-veil/[0.02]">
                 <th className="th">Наименование</th><th className="th">ИНН</th><th className="th">Категория</th>
                 <th className="th">Ведомость Дт-Кт</th>
                 <th className="th">НДС</th>
@@ -123,8 +123,8 @@ export default function Organizations() {
               </tr></thead>
               <tbody>
                 {data.map((o) => (
-                  <tr key={o.id} className="hover:bg-white/[0.02]">
-                    <td className="td font-medium text-white max-w-[240px] truncate">{o.name}</td>
+                  <tr key={o.id} className="hover:bg-veil/[0.02]">
+                    <td className="td font-medium text-ink max-w-[240px] truncate">{o.name}</td>
                     <td className="td text-slate-400">{o.inn || "—"}</td>
                     <td className="td"><Badge tone={catTone(o.category)}>{catLabel(o.category)}</Badge></td>
                     <td className="td text-slate-400 text-xs">{ledgerLabel(o.ledger)}</td>
@@ -141,7 +141,7 @@ export default function Organizations() {
                 ))}
               </tbody>
               <tfoot>
-                <tr className="border-t-2 border-line bg-white/[0.04] font-semibold text-white">
+                <tr className="border-t-2 border-line bg-veil/[0.04] font-semibold text-ink">
                   <td className="td whitespace-nowrap text-slate-300" colSpan={5}>
                     Итого по фильтру · {data.length} орг.
                   </td>
@@ -182,7 +182,7 @@ export default function Organizations() {
             <input className="input" value={form.expense_code} onChange={(e) => setForm({ ...form, expense_code: e.target.value })} />
           </Field>
           <div className="col-span-2 border-t border-line pt-3 flex items-baseline justify-between gap-3">
-            <div className="text-sm font-semibold text-white">Входящее сальдо на начало учёта</div>
+            <div className="text-sm font-semibold text-ink">Входящее сальдо на начало учёта</div>
             <button type="button" className="text-xs text-slate-500 hover:text-accent-soft"
               onClick={() => setHelp((h) => !h)}>
               {help ? "▾" : "▸"} что это
@@ -250,7 +250,7 @@ export default function Organizations() {
             </div>
           )}
           {editing && (
-            <div className="col-span-2 rounded-xl bg-white/[0.03] border border-line px-3.5 py-2.5 text-sm">
+            <div className="col-span-2 rounded-xl bg-veil/[0.03] border border-line px-3.5 py-2.5 text-sm">
               <span className="text-slate-400">Текущее сальдо (расчётное): </span>
               {editing.balance_credit
                 ? <b className="text-rose-300">Кредит {fmtNum(editing.balance_credit)} сум — мы должны</b>
@@ -258,7 +258,7 @@ export default function Organizations() {
             </div>
           )}
           <div className="col-span-2 flex items-center gap-2 pt-1">
-            <input id="nds" type="checkbox" checked={form.nds_payer} onChange={(e) => setForm({ ...form, nds_payer: e.target.checked })} className="h-4 w-4 accent-[#5b8cff]" />
+            <input id="nds" type="checkbox" checked={form.nds_payer} onChange={(e) => setForm({ ...form, nds_payer: e.target.checked })} className="h-4 w-4 accent-accent" />
             <label htmlFor="nds" className="text-sm text-slate-300">Плательщик НДС</label>
           </div>
         </div>

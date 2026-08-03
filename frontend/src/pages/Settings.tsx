@@ -50,7 +50,7 @@ export default function Settings() {
 
       {groups.map((grp) => (
         <Card key={grp} className="mb-4">
-          <h3 className="font-semibold text-white mb-4">{grp}</h3>
+          <h3 className="font-semibold text-ink mb-4">{grp}</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {shown.filter((s) => s.group === grp).map((s) => (
               <div key={s.key} className="flex items-end gap-2">

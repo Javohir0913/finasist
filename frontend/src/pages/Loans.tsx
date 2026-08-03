@@ -60,7 +60,7 @@ export default function Loans() {
           <Card className="!p-4 mb-4 flex flex-wrap gap-6 text-sm">
             <div>
               <div className="text-[11px] text-slate-500">Входящее сальдо по фильтру</div>
-              <div className="text-white font-semibold tabular-nums">{uzs(sum(f.rows, "opening_uzs"))}</div>
+              <div className="text-ink font-semibold tabular-nums">{uzs(sum(f.rows, "opening_uzs"))}</div>
             </div>
             <div>
               <div className="text-[11px] text-slate-500">Остаток по фильтру</div>
@@ -91,11 +91,11 @@ export default function Loans() {
                   {can("loans:delete") && <button onClick={() => remove(l.id)} className="text-slate-500 hover:text-rose-300">✕</button>}
                 </div>
               </div>
-              <div className="text-lg font-semibold text-white mt-3">{l.counterparty}</div>
+              <div className="text-lg font-semibold text-ink mt-3">{l.counterparty}</div>
               <div className="text-sm text-slate-400 mt-1">{l.note}</div>
               <div className="mt-4 grid grid-cols-2 gap-3">
-                <div className="rounded-xl bg-white/5 p-3"><div className="text-[11px] text-slate-500">Входящее сальдо</div><div className="text-white font-semibold tabular-nums">{fmtNum(l.opening_uzs)}</div></div>
-                <div className="rounded-xl bg-white/5 p-3"><div className="text-[11px] text-slate-500">Текущий остаток</div><div className="text-amber-300 font-semibold tabular-nums">{fmtNum(l.balance)}</div></div>
+                <div className="rounded-xl bg-veil/5 p-3"><div className="text-[11px] text-slate-500">Входящее сальдо</div><div className="text-ink font-semibold tabular-nums">{fmtNum(l.opening_uzs)}</div></div>
+                <div className="rounded-xl bg-veil/5 p-3"><div className="text-[11px] text-slate-500">Текущий остаток</div><div className="text-amber-300 font-semibold tabular-nums">{fmtNum(l.balance)}</div></div>
               </div>
               <button className="btn-ghost w-full mt-3" onClick={() => setMoves(l)}>Движения по займу</button>
             </Card>
@@ -177,7 +177,7 @@ function LoanMoves({ loan, onClose }: { loan: L; onClose: () => void }) {
             </thead>
             <tbody>
               {data.map((e) => (
-                <tr key={e.id} className="hover:bg-white/[0.02]">
+                <tr key={e.id} className="hover:bg-veil/[0.02]">
                   <td className="td whitespace-nowrap">{fmtDate(e.doc_date)}</td>
                   <td className="td"><Badge tone={e.kind === "debit" ? "emerald" : "rose"}>{e.kind === "debit" ? "Выдача" : "Погашение"}</Badge></td>
                   <td className="td text-right tabular-nums">{fmtNum(e.amount_uzs)}</td>

@@ -178,7 +178,7 @@ export default function Transactions() {
 
       <div className="flex gap-2 mb-4">
         {[["", "Все"], ["income", "Приход"], ["expense", "Расход"]].map(([v, l]) => (
-          <button key={v} onClick={() => setFilter(v)} className={`chip ${filter === v ? "bg-accent/15 text-accent-soft border border-accent/25" : "bg-white/5 text-slate-400 border border-line"}`}>{l}</button>
+          <button key={v} onClick={() => setFilter(v)} className={`chip ${filter === v ? "bg-accent/15 text-accent-soft border border-accent/25" : "bg-veil/5 text-slate-400 border border-line"}`}>{l}</button>
         ))}
       </div>
 
@@ -189,14 +189,14 @@ export default function Transactions() {
          !f.rows.length ? <EmptyState text="Под фильтр ничего не подошло" /> : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[960px]">
-              <thead><tr className="bg-white/[0.02]">
+              <thead><tr className="bg-veil/[0.02]">
                 <th className="th">Дата</th><th className="th">Тип</th><th className="th">Счёт</th>
                 <th className="th">Статья / код</th><th className="th">Подразд.</th><th className="th">Контрагент</th>
                 <th className="th text-right">Сумма</th><th className="th text-right">USD</th><th className="th"></th>
               </tr></thead>
               <tbody>
                 {f.rows.map((t) => (
-                  <tr key={t.id} className="hover:bg-white/[0.02]">
+                  <tr key={t.id} className="hover:bg-veil/[0.02]">
                     <td className="td whitespace-nowrap">{fmtDate(t.doc_date)}</td>
                     <td className="td"><Badge tone={t.direction === "income" ? "emerald" : "rose"}>{t.direction === "income" ? "Приход" : "Расход"}</Badge></td>
                     <td className="td"><Badge tone="slate">{t.account === "bank" ? "Банк" : "Касса"}</Badge></td>
@@ -208,7 +208,7 @@ export default function Transactions() {
                     </td>
                     <td className="td">{t.division ? <Badge tone="violet">{t.division}</Badge> : <span className="text-slate-600">—</span>}</td>
                     <td className="td max-w-[200px] truncate">{t.organization?.name || "—"}</td>
-                    <td className="td text-right font-medium text-white whitespace-nowrap">{fmtNum(t.amount)} <span className="text-slate-500 text-xs">{t.currency}</span></td>
+                    <td className="td text-right font-medium text-ink whitespace-nowrap">{fmtNum(t.amount)} <span className="text-slate-500 text-xs">{t.currency}</span></td>
                     <td className={`td text-right font-semibold whitespace-nowrap ${t.direction === "income" ? "text-emerald-300" : "text-rose-300"}`}>{t.direction === "income" ? "+" : "−"}${fmtUSD2(t.amount_usd)}</td>
                     <td className="td text-right whitespace-nowrap">
                       {can("transactions:edit") && <button onClick={() => openEdit(t)} className="text-slate-500 hover:text-accent-soft mr-3">✎</button>}

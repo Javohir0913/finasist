@@ -2,8 +2,105 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─────────────────────────────────────────────────────────────
+   Темы. Значения — в формате «R G B» без rgb(), чтобы Tailwind
+   мог подставлять прозрачность: bg-base-850/70, border-line/60.
+   Светлая — значения по умолчанию, тёмная — под классом .dark
+   (класс ставится на <html> ещё до отрисовки, см. index.html).
+   ───────────────────────────────────────────────────────────── */
 :root {
+  color-scheme: light;
+
+  --c-base-950: 239 242 248; /* фон страницы — чуть глубже карточек */
+  --c-base-900: 255 255 255; /* сайдбар / поля ввода */
+  --c-base-850: 255 255 255; /* карточки, выпадающие списки */
+  --c-base-800: 241 244 249;
+  --c-base-700: 228 233 242;
+  --c-line: 222 227 236;
+
+  --c-veil: 15 23 42; /* плёнка поверх фона — на светлой затемняет */
+  --c-ink: 15 23 42; /* самый контрастный текст */
+
+  --c-accent: 59 110 233;
+  --c-accent-soft: 43 88 203;
+
+  /* 100 — контрастнее всего, 600 — бледнее всего */
+  --c-slate-100: 15 23 42;
+  --c-slate-200: 30 41 59;
+  --c-slate-300: 51 65 85;
+  --c-slate-400: 82 96 118;
+  --c-slate-500: 110 124 145;
+  --c-slate-600: 148 163 184;
+
+  --c-emerald-200: 6 78 59;
+  --c-emerald-300: 4 120 87;
+  --c-rose-300: 190 18 60;
+  --c-amber-100: 120 53 15;
+  --c-amber-200: 146 64 14;
+  --c-amber-300: 180 83 9;
+  --c-violet-300: 109 40 217;
+
+  --c-emerald2: 13 148 118;
+  --c-violet2: 124 58 237;
+  --c-amber2: 217 119 6;
+  --c-rose2: 225 29 72;
+
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.05), 0 16px 40px -24px rgba(15, 23, 42, 0.28);
+  --shadow-glow: 0 8px 22px -10px rgba(59, 110, 233, 0.45);
+  --grid-line: rgba(15, 23, 42, 0.045);
+
+  --page-tint: radial-gradient(1200px 600px at 80% -10%, rgba(59, 110, 233, 0.09), transparent 60%),
+    radial-gradient(900px 500px at 0% 100%, rgba(124, 58, 237, 0.07), transparent 55%);
+  --overlay-bg: rgba(15, 23, 42, 0.45);
+  --scroll-thumb: rgba(15, 23, 42, 0.16);
+  --scroll-thumb-hover: rgba(15, 23, 42, 0.28);
+}
+
+.dark {
   color-scheme: dark;
+
+  --c-base-950: 7 10 18;
+  --c-base-900: 11 15 26;
+  --c-base-850: 15 21 35;
+  --c-base-800: 20 27 45;
+  --c-base-700: 28 39 64;
+  --c-line: 33 39 53;
+
+  --c-veil: 255 255 255;
+  --c-ink: 255 255 255;
+
+  --c-accent: 91 140 255;
+  --c-accent-soft: 122 162 255;
+
+  --c-slate-100: 241 245 249;
+  --c-slate-200: 226 232 240;
+  --c-slate-300: 203 213 225;
+  --c-slate-400: 148 163 184;
+  --c-slate-500: 100 116 139;
+  --c-slate-600: 71 85 105;
+
+  --c-emerald-200: 167 243 208;
+  --c-emerald-300: 110 231 183;
+  --c-rose-300: 253 164 175;
+  --c-amber-100: 254 243 199;
+  --c-amber-200: 253 230 138;
+  --c-amber-300: 252 211 77;
+  --c-violet-300: 196 181 253;
+
+  --c-emerald2: 45 212 167;
+  --c-violet2: 167 139 250;
+  --c-amber2: 251 191 36;
+  --c-rose2: 251 113 133;
+
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 24px 60px -30px rgba(0, 0, 0, 0.9);
+  --shadow-glow: 0 0 40px -12px rgba(91, 140, 255, 0.55);
+  --grid-line: rgba(255, 255, 255, 0.025);
+
+  --page-tint: radial-gradient(1200px 600px at 80% -10%, rgba(91, 140, 255, 0.08), transparent 60%),
+    radial-gradient(900px 500px at 0% 100%, rgba(167, 139, 250, 0.06), transparent 55%);
+  --overlay-bg: rgba(0, 0, 0, 0.7);
+  --scroll-thumb: rgba(255, 255, 255, 0.08);
+  --scroll-thumb-hover: rgba(255, 255, 255, 0.16);
 }
 
 * {
@@ -33,8 +130,7 @@ html {
 
 body {
   @apply bg-base-950 text-slate-200 font-sans;
-  background-image: radial-gradient(1200px 600px at 80% -10%, rgba(91, 140, 255, 0.08), transparent 60%),
-    radial-gradient(900px 500px at 0% 100%, rgba(167, 139, 250, 0.06), transparent 55%);
+  background-image: var(--page-tint);
   background-attachment: fixed;
 }
 
@@ -43,11 +139,11 @@ body {
   height: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--scroll-thumb);
   border-radius: 10px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.16);
+  background: var(--scroll-thumb-hover);
 }
 
 @layer components {
@@ -65,7 +161,7 @@ body {
     @apply btn bg-accent text-white hover:bg-accent-soft shadow-glow;
   }
   .btn-ghost {
-    @apply btn bg-white/5 text-slate-200 hover:bg-white/10 border border-line;
+    @apply btn bg-veil/5 text-slate-200 hover:bg-veil/10 border border-line;
   }
   .btn-danger {
     @apply btn bg-rose-500/15 text-rose-300 hover:bg-rose-500/25 border border-rose-500/20;
@@ -95,5 +191,28 @@ body {
   /* Цифры одинаковой ширины — колонка не «прыгает» при обновлении */
   .td.text-right {
     font-variant-numeric: tabular-nums;
+  }
+  /* Затемнение под модалкой/мобильным меню — своё для каждой темы */
+  .backdrop-veil {
+    background: var(--overlay-bg);
+  }
+}
+
+/* На светлом фоне плёнка в 2–4% почти не читается: зебра таблиц и подсветка
+   строки под курсором пропадают. Для светлой темы усиливаем — в тёмной
+   исходные значения остаются как были. */
+@layer utilities {
+  html:not(.dark) .bg-veil\/\[0\.02\],
+  html:not(.dark) .hover\:bg-veil\/\[0\.02\]:hover {
+    background-color: rgb(var(--c-veil) / 0.045);
+  }
+  html:not(.dark) .bg-veil\/\[0\.03\],
+  html:not(.dark) .hover\:bg-veil\/\[0\.03\]:hover {
+    background-color: rgb(var(--c-veil) / 0.055);
+  }
+  html:not(.dark) .bg-veil\/\[0\.04\],
+  html:not(.dark) .bg-veil\/\[0\.05\],
+  html:not(.dark) .hover\:bg-veil\/\[0\.04\]:hover {
+    background-color: rgb(var(--c-veil) / 0.07);
   }
 }

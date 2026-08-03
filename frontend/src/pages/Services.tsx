@@ -34,27 +34,27 @@ export default function Services() {
         right={can("services:create") && <button className="btn-primary" onClick={() => { setForm({ ...empty, direction: dir }); setErr(""); setOpen(true); }}>+ Услуга</button>} />
       <div className="flex gap-2 mb-4">
         {[["received", "Полученные"], ["provided", "Оказанные"]].map(([v, l]) => (
-          <button key={v} onClick={() => setDir(v)} className={`chip ${dir === v ? "bg-accent/15 text-accent-soft border border-accent/25" : "bg-white/5 text-slate-400 border border-line"}`}>{l}</button>
+          <button key={v} onClick={() => setDir(v)} className={`chip ${dir === v ? "bg-accent/15 text-accent-soft border border-accent/25" : "bg-veil/5 text-slate-400 border border-line"}`}>{l}</button>
         ))}
       </div>
       <Card className="!p-0 overflow-hidden">
         {loading ? <Spinner /> : !data?.length ? <EmptyState text="Нет услуг" /> : (
           <div className="overflow-x-auto"><table className="w-full min-w-[880px]">
-            <thead><tr className="bg-white/[0.02]"><th className="th">Дата</th><th className="th">Контрагент</th><th className="th">Вид услуги</th><th className="th">Подразд.</th><th className="th text-right">Без НДС</th><th className="th text-right">НДС</th><th className="th text-right">Всего</th><th className="th"></th></tr></thead>
+            <thead><tr className="bg-veil/[0.02]"><th className="th">Дата</th><th className="th">Контрагент</th><th className="th">Вид услуги</th><th className="th">Подразд.</th><th className="th text-right">Без НДС</th><th className="th text-right">НДС</th><th className="th text-right">Всего</th><th className="th"></th></tr></thead>
             <tbody>
               {data.map((s) => (
-                <tr key={s.id} className="hover:bg-white/[0.02]">
+                <tr key={s.id} className="hover:bg-veil/[0.02]">
                   <td className="td">{fmtDate(s.doc_date)}</td>
-                  <td className="td text-white max-w-[180px] truncate">{s.organization?.name || "—"}</td>
+                  <td className="td text-ink max-w-[180px] truncate">{s.organization?.name || "—"}</td>
                   <td className="td max-w-[200px] truncate">{s.service_type || "—"}</td>
                   <td className="td">{s.division ? <Badge tone="violet">{s.division}</Badge> : "—"}</td>
                   <td className="td text-right">{fmtNum(s.net)}</td>
                   <td className="td text-right text-slate-400">{fmtNum(s.vat_amount)}</td>
-                  <td className="td text-right font-semibold text-white">{fmtNum(s.amount)}</td>
+                  <td className="td text-right font-semibold text-ink">{fmtNum(s.amount)}</td>
                   <td className="td text-right">{can("services:delete") && <button onClick={() => remove(s.id)} className="text-slate-500 hover:text-rose-300">✕</button>}</td>
                 </tr>
               ))}
-              <tr className="bg-white/[0.03] font-semibold"><td className="td text-white" colSpan={4}>Итого (без НДС)</td><td className="td text-right text-white">{fmtNum(total)}</td><td className="td" colSpan={3}></td></tr>
+              <tr className="bg-veil/[0.03] font-semibold"><td className="td text-ink" colSpan={4}>Итого (без НДС)</td><td className="td text-right text-ink">{fmtNum(total)}</td><td className="td" colSpan={3}></td></tr>
             </tbody>
           </table></div>
         )}
@@ -68,7 +68,7 @@ export default function Services() {
           <Field label="Подразделение"><SearchSelect value={form.division} onChange={(v) => setForm({ ...form, division: v })} placeholder="—" emptyLabel="—" options={(divs || []).map((d) => ({ value: d.name, label: d.name }))} /></Field>
           {dir === "received" && <Field label="Код расхода"><SearchSelect value={form.expense_code} onChange={(v) => setForm({ ...form, expense_code: v })} placeholder="—" emptyLabel="—" options={(expCodes || []).map((c) => ({ value: c.code, label: `${c.code} · ${c.name}` }))} /></Field>}
           <Field label="Сумма (с НДС), сум"><MoneyInput value={form.amount} onChange={(v) => setForm({ ...form, amount: v })} /></Field>
-          <div className="col-span-2 flex items-center gap-2"><input id="svcvat" type="checkbox" checked={form.vat} onChange={(e) => setForm({ ...form, vat: e.target.checked })} className="h-4 w-4 accent-[#5b8cff]" /><label htmlFor="svcvat" className="text-sm text-slate-300">С учётом НДС (12%)</label></div>
+          <div className="col-span-2 flex items-center gap-2"><input id="svcvat" type="checkbox" checked={form.vat} onChange={(e) => setForm({ ...form, vat: e.target.checked })} className="h-4 w-4 accent-accent" /><label htmlFor="svcvat" className="text-sm text-slate-300">С учётом НДС (12%)</label></div>
         </div>
         <div className="flex justify-end gap-2 mt-6"><button className="btn-ghost" onClick={() => setOpen(false)}>Отмена</button><button className="btn-primary" onClick={save} disabled={saving}>Сохранить</button></div>
       </Modal>
