@@ -10,7 +10,8 @@ from sqlalchemy import extract, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
-from ..ledger import _rate_map, rate_on
+from ..ledger import _rate_map, ledger_rows, rate_on
+from ..stock import stock_value_at
 from ..models import (
     ExpenseCode,
     Material,
@@ -62,22 +63,14 @@ async def dashboard(
     income_uzs, income_usd = await money("income")
     expense_uzs, expense_usd = await money("expense")
 
-    # --- дебиторка / кредиторка из сальдо контрагентов ---
-    async def side(positive: bool) -> tuple[float, float]:
-        cond = Organization.balance_uzs > 0 if positive else Organization.balance_uzs < 0
-        sign = 1 if positive else -1
-        uzs, usd = (
-            await db.execute(
-                select(
-                    func.coalesce(func.sum(sign * Organization.balance_uzs), 0),
-                    func.coalesce(func.sum(sign * Organization.balance_usd), 0),
-                ).where(cond)
-            )
-        ).one()
-        return float(uzs or 0), float(usd or 0)
-
-    recv_uzs, recv_usd = await side(True)
-    pay_uzs, pay_usd = await side(False)
+    # --- дебиторка / кредиторка НА КОНЕЦ ПЕРИОДА ---
+    # Не `Organization.balance_uzs`: там сальдо «на сейчас», и при выборе апреля
+    # дашборд показывал июльскую задолженность. Считаем ведомостью Дт-Кт по дату.
+    led = await ledger_rows(db, None, None, end)
+    recv_uzs = float(led["totals"]["end_debit"])
+    recv_usd = float(led["totals"]["end_debit_usd"])
+    pay_uzs = float(led["totals"]["end_credit"])
+    pay_usd = float(led["totals"]["end_credit_usd"])
 
     # --- счётчики справочников ---
     org_count = await db.scalar(select(func.count(Organization.id)))
@@ -147,11 +140,11 @@ async def dashboard(
         period(select(func.coalesce(func.sum(Production.qty), 0)), Production.doc_date)
     ) or 0)
 
-    mats = (await db.execute(select(Material))).scalars().all()
-    raw_stock = sum(float(m.stock_qty or 0) * float(m.avg_cost or 0) for m in mats if m.kind == "raw")
-    spare_stock = sum(float(m.stock_qty or 0) * float(m.avg_cost or 0) for m in mats if m.kind != "raw")
-    prods = (await db.execute(select(Product))).scalars().all()
-    gp_stock = sum(float(p.stock_qty or 0) * float(p.avg_cost or 0) for p in prods)
+    # Остатки — НА КОНЕЦ ВЫБРАННОГО ПЕРИОДА, а не «как сейчас». Карточки
+    # (Material.stock_qty / avg_cost) хранят только текущее состояние: из-за них
+    # дашборд за апрель показывал остаток ГП, созданный выпуском 29 июля.
+    stock = await stock_value_at(db, end)
+    raw_stock, spare_stock, gp_stock = stock["raw"], stock["spare"], stock["gp"]
 
     def pair(uzs: float) -> dict:
         return {"uzs": round(uzs, 2), "usd": to_usd(uzs)}

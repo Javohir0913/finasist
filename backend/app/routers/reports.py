@@ -1315,7 +1315,9 @@ async def materials_turnover(
     if not mats:
         return {"rows": [], "by_division": by_division}
 
-    async def agg(model, qty_col, val_col):
+    start, _end = _period_bounds(year, month)
+
+    async def agg(model, qty_col, val_col, before: bool = False):
         stmt = select(model.material_id, model.division,
                       func.coalesce(func.sum(qty_col), 0),
                       func.coalesce(func.sum(val_col), 0)).where(
@@ -1323,34 +1325,51 @@ async def materials_turnover(
         )
         if division:
             stmt = stmt.where(model.division == division)
+        if before:
+            if start is None:
+                return {}
+            stmt = stmt.where(model.doc_date < start)
+        else:
+            stmt = _period(stmt, year, month, model.doc_date)
         stmt = stmt.group_by(model.material_id, model.division)
         out: dict[tuple[int, str], tuple[float, float]] = {}
-        for mid, d, q, v in (await db.execute(_period(stmt, year, month, model.doc_date))).all():
+        for mid, d, q, v in (await db.execute(stmt)).all():
             out[(mid, d or "")] = (float(q or 0), float(v or 0))
         return out
 
     recv = await agg(MaterialReceipt, MaterialReceipt.qty, MaterialReceipt.amount_uzs)
     iss = await agg(MaterialIssue, MaterialIssue.qty, MaterialIssue.cost_uzs)
+    recv_before = await agg(MaterialReceipt, MaterialReceipt.qty, MaterialReceipt.amount_uzs, before=True)
+    iss_before = await agg(MaterialIssue, MaterialIssue.qty, MaterialIssue.cost_uzs, before=True)
 
-    # закрывающие остатки — из карточек подразделений
+    # Входящие остатки — как на листе «Остаток сырья»: количество и цена за
+    # единицу. Раньше закрывающий остаток брался из карточки («как сейчас»), а
+    # входящий выводился обратным счётом — из-за этого отчёт за апрель показывал
+    # июльский склад. Теперь всё считается движениями, как в «ГП оборот».
     sstmt = select(MaterialStock).where(MaterialStock.material_id.in_(list(mats)))
     if division:
         sstmt = sstmt.where(MaterialStock.division == division)
-    closing = {
-        (s.material_id, s.division or ""): (float(s.stock_qty or 0), float(s.avg_cost or 0))
+    stocks = {
+        (s.material_id, s.division or ""): s
         for s in (await db.execute(sstmt)).scalars().all()
     }
 
-    keys = set(recv) | set(iss) | set(closing)
+    keys = set(recv) | set(iss) | set(recv_before) | set(iss_before) | set(stocks)
     rows = []
     for mid, d in sorted(keys, key=lambda k: (mats[k[0]].code or "", k[1])):
         m = mats[mid]
         recv_q, recv_v = recv.get((mid, d), (0.0, 0.0))
         iss_q, iss_v = iss.get((mid, d), (0.0, 0.0))
-        close_q, close_avg = closing.get((mid, d), (0.0, 0.0))
-        close_v = round(close_q * close_avg, 2)
-        open_q = round(close_q - recv_q + iss_q, 3)
-        open_v = round(close_v - recv_v + iss_v, 2)
+
+        src = stocks.get((mid, d)) or (m if d == "" else None)
+        op_q = float(getattr(src, "opening_qty", 0) or 0) if src else 0.0
+        op_price = float(getattr(src, "opening_cost", 0) or 0) if src else 0.0
+        bq, bv = recv_before.get((mid, d), (0.0, 0.0))
+        sq, sv = iss_before.get((mid, d), (0.0, 0.0))
+        open_q = round(op_q + bq - sq, 3)
+        open_v = round(op_q * op_price + bv - sv, 2)
+        close_q = round(open_q + recv_q - iss_q, 3)
+        close_v = round(open_v + recv_v - iss_v, 2)
         if not any([open_q, recv_q, iss_q, close_q]):
             continue
         rows.append({
