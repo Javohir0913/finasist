@@ -3,6 +3,7 @@ import api, { apiError } from "../api/client";
 import { Badge, Card, EmptyState, Field, Modal, MoneyInput, SearchSelect, SectionTitle, Spinner } from "../components/ui";
 import { fmtDate, fmtNum, withUnit } from "../lib/format";
 import { LockedMark, LockedNotice, useLock } from "../lib/lock";
+import { PeriodPicker, usePeriod, withPeriod } from "../lib/period";
 import { FilterBar, qty, sum, text, TotalRow, useFilter, uzs } from "../lib/table";
 import { useApi } from "../lib/useApi";
 import { useAuth } from "../store/auth";
@@ -26,7 +27,11 @@ export default function Inventory() {
   const [tab, setTab] = useState("receipt");
   return (
     <div>
-      <SectionTitle title="Склад и производство" sub="Приход и расход сырья/запчастей, выпуск и реализация ГП (себестоимость по средней)" />
+      <SectionTitle
+        title="Склад и производство"
+        sub="Приход и расход сырья/запчастей, выпуск и реализация ГП (себестоимость по средней)"
+        right={<PeriodPicker />}
+      />
       <div className="flex flex-wrap gap-2 mb-4">
         {TABS.map((t) => (
           <button key={t.k} onClick={() => setTab(t.k)} className={`chip ${tab === t.k ? "bg-accent/15 text-accent-soft border border-accent/25" : "bg-veil/5 text-slate-400 border border-line"}`}>{t.label}</button>
@@ -59,9 +64,11 @@ function Toolbar({ can, onAdd, label }: { can: boolean; onAdd: () => void; label
 function Receipts({ kind }: { kind: string }) {
   const { can } = useAuth();
   const { isLocked, isPeriodLocked, minOpenDate, hint } = useLock();
+  const { qs } = usePeriod();
   const { materials, orgs, divs } = useRefs();
   const mats = (materials || []).filter((m) => m.kind === kind);
-  const { data: all, loading, reload } = useApi<any[]>("/material-receipts");
+  const url = withPeriod("/material-receipts", qs);
+  const { data: all, loading, reload } = useApi<any[]>(url, [url]);
   const data = all?.filter((r) => r.material?.kind === kind);
   const [open, setOpen] = useState(false); const [err, setErr] = useState(""); const [saving, setSaving] = useState(false);
   const empty = { doc_date: today(), material_id: "", organization_id: "", division: "", qty: 0, price_uzs: 0, vat: false, payment_type: "" };
@@ -163,9 +170,11 @@ function Receipts({ kind }: { kind: string }) {
 function Issues({ kind }: { kind: string }) {
   const { can } = useAuth();
   const { isLocked, isPeriodLocked, minOpenDate, hint } = useLock();
+  const { qs } = usePeriod();
   const { materials, divs, expCodes } = useRefs();
   const mats = (materials || []).filter((m) => m.kind === kind);
-  const { data: all, loading, reload } = useApi<any[]>("/material-issues");
+  const url = withPeriod("/material-issues", qs);
+  const { data: all, loading, reload } = useApi<any[]>(url, [url]);
   const data = all?.filter((r) => r.material?.kind === kind);
   const [open, setOpen] = useState(false); const [err, setErr] = useState(""); const [saving, setSaving] = useState(false);
   const empty = { doc_date: today(), material_id: "", division: "", expense_code: "", qty: 0, vat: false };
@@ -241,8 +250,10 @@ function Issues({ kind }: { kind: string }) {
 function Productions() {
   const { can } = useAuth();
   const { isLocked, isPeriodLocked, minOpenDate, hint } = useLock();
+  const { qs } = usePeriod();
   const { products, divs } = useRefs();
-  const { data, loading, reload } = useApi<any[]>("/productions");
+  const url = withPeriod("/productions", qs);
+  const { data, loading, reload } = useApi<any[]>(url, [url]);
   const [open, setOpen] = useState(false); const [err, setErr] = useState(""); const [saving, setSaving] = useState(false);
   const empty = { doc_date: today(), product_id: "", division: "", qty: 0 };
   const [form, setForm] = useState<any>(empty); const [editing, setEditing] = useState<any>(null);
@@ -373,8 +384,10 @@ function Productions() {
 function Sales() {
   const { can } = useAuth();
   const { isLocked, isPeriodLocked, minOpenDate, hint } = useLock();
+  const { qs } = usePeriod();
   const { products, orgs, divs } = useRefs();
-  const { data, loading, reload } = useApi<any[]>("/sales");
+  const url = withPeriod("/sales", qs);
+  const { data, loading, reload } = useApi<any[]>(url, [url]);
   const [open, setOpen] = useState(false); const [err, setErr] = useState(""); const [saving, setSaving] = useState(false);
   const empty = { doc_date: today(), product_id: "", organization_id: "", division: "", qty: 0, price_uzs: 0, vat: false, payment_type: "" };
   const [form, setForm] = useState<any>(empty); const [editing, setEditing] = useState<any>(null);

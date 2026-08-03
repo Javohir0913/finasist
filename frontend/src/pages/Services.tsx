@@ -3,6 +3,7 @@ import api, { apiError } from "../api/client";
 import { Badge, Card, EmptyState, Field, Modal, MoneyInput, SearchSelect, SectionTitle, Spinner } from "../components/ui";
 import { fmtDate, fmtNum } from "../lib/format";
 import { LockedMark, LockedNotice, useLock } from "../lib/lock";
+import { PeriodPicker, usePeriod, withPeriod } from "../lib/period";
 import { useApi } from "../lib/useApi";
 import { useAuth } from "../store/auth";
 
@@ -15,7 +16,9 @@ export default function Services() {
   const { can } = useAuth();
   const { isLocked, isPeriodLocked, minOpenDate, hint } = useLock();
   const [dir, setDir] = useState("received");
-  const { data, loading, reload } = useApi<Svc[]>(`/services?direction=${dir}`, [dir]);
+  const { qs } = usePeriod();
+  const url = withPeriod("/services", qs, `direction=${dir}`);
+  const { data, loading, reload } = useApi<Svc[]>(url, [url]);
   const { data: orgs } = useApi<Org[]>("/organizations");
   const { data: divs } = useApi<Div[]>("/divisions");
   const { data: expCodes } = useApi<Code[]>("/expense-codes");
@@ -33,7 +36,10 @@ export default function Services() {
   return (
     <div>
       <SectionTitle title="Услуги" sub="Полученные и оказанные услуги (с расчётом НДС)"
-        right={can("services:create") && <button className="btn-primary" onClick={() => { setForm({ ...empty, direction: dir }); setErr(""); setOpen(true); }}>+ Услуга</button>} />
+        right={<div className="flex flex-wrap items-center gap-2">
+          <PeriodPicker />
+          {can("services:create") && <button className="btn-primary" onClick={() => { setForm({ ...empty, direction: dir }); setErr(""); setOpen(true); }}>+ Услуга</button>}
+        </div>} />
       <div className="flex gap-2 mb-4">
         {[["received", "Полученные"], ["provided", "Оказанные"]].map(([v, l]) => (
           <button key={v} onClick={() => setDir(v)} className={`chip ${dir === v ? "bg-accent/15 text-accent-soft border border-accent/25" : "bg-veil/5 text-slate-400 border border-line"}`}>{l}</button>

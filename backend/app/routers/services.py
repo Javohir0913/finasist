@@ -1,6 +1,6 @@
 """Полученные / Оказанные услуги."""
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import extract, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -34,12 +34,18 @@ async def _apply(db: AsyncSession, s: Service) -> None:
 @router.get("", response_model=list[ServiceOut])
 async def list_services(
     direction: str | None = None,
+    year: int | None = None,
+    month: int | None = None,
     _: User = Depends(require("services:view")),
     db: AsyncSession = Depends(get_db),
 ):
     stmt = select(Service).options(selectinload(Service.organization)).order_by(Service.doc_date.desc(), Service.id.desc())
     if direction:
         stmt = stmt.where(Service.direction == direction)
+    if year:
+        stmt = stmt.where(extract("year", Service.doc_date) == year)
+    if month:
+        stmt = stmt.where(extract("month", Service.doc_date) == month)
     res = await db.execute(stmt)
     return res.scalars().all()
 

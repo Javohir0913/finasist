@@ -187,6 +187,20 @@ async def assert_period_open(db: AsyncSession, period: str | None, what: str = "
         await _raise_closed(db, blocker, str(period), what)
 
 
+async def accounting_start(db: AsyncSession) -> date | None:
+    """«Дата начала учёта» из настроек — с неё существуют входящие остатки.
+
+    У входящего остатка склада своей даты нет (в отличие от контрагентов, счетов
+    и займов), поэтому до этой правки он подставлялся в баланс на ЛЮБУЮ дату —
+    даже за месяцы до начала работы компании.
+    """
+    raw = await db.scalar(select(Setting.value).where(Setting.key == "period_start"))
+    try:
+        return date.fromisoformat(str(raw).strip()) if raw else None
+    except (ValueError, AttributeError):
+        return None
+
+
 # ---------------------------------------------------------------- настройки
 async def setting_value(db: AsyncSession, key: str, on: date | None = None) -> float:
     """Числовое значение настройки, действующее на дату.

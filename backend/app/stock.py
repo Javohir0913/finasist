@@ -16,6 +16,7 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .periods import accounting_start
 from .models import (
     Material,
     MaterialIssue,
@@ -52,16 +53,20 @@ async def _replay(
 ) -> dict[tuple[int, str], list[float]]:
     """Состояние склада на дату: {(id номенклатуры, подразделение): [кол-во, средняя]}."""
     openings: dict[tuple[int, str], tuple[float, float]] = {}
-    for row in (await db.execute(select(stock_model))).scalars().all():
-        openings[(getattr(row, stock_fk), (row.division or "").strip())] = (
-            float(row.opening_qty or 0),
-            float(row.opening_cost or 0),
-        )
-    cards = (await db.execute(select(card_model))).scalars().all()
-    for c in cards:
-        # общий склад: если строки подразделения нет, входящий остаток берётся
-        # из карточки — так же, как в recompute_material / recompute_product
-        openings.setdefault((c.id, ""), (float(c.opening_qty or 0), float(c.opening_cost or 0)))
+    # У входящего остатка склада своей даты нет, он относится к «дате начала
+    # учёта». До этой даты остатков ещё не существовало: раньше они лезли в
+    # баланс любого месяца, и «пустой» месяц показывал полный склад ГП.
+    start = await accounting_start(db)
+    if on is None or start is None or on >= start:
+        for row in (await db.execute(select(stock_model))).scalars().all():
+            openings[(getattr(row, stock_fk), (row.division or "").strip())] = (
+                float(row.opening_qty or 0),
+                float(row.opening_cost or 0),
+            )
+        for c in (await db.execute(select(card_model))).scalars().all():
+            # общий склад: если строки подразделения нет, входящий остаток берётся
+            # из карточки — так же, как в recompute_material / recompute_product
+            openings.setdefault((c.id, ""), (float(c.opening_qty or 0), float(c.opening_cost or 0)))
 
     events: list[tuple[date, int, int, object, str]] = []
     for r in ins:

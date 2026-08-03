@@ -2,7 +2,7 @@
 Остатки и средняя себестоимость пересчитываются полным реплеем движений
 (гарантирует корректность при любом создании/изменении/удалении)."""
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import extract, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -38,6 +38,19 @@ from ..schemas import (
 from ..security import require
 
 router = APIRouter(prefix="/api", tags=["inventory"])
+
+
+def by_period(stmt, col, year: int | None, month: int | None):
+    """Отобрать документы выбранного месяца (как на остальных экранах).
+
+    Без этого «Склад и производство» показывал вообще все документы за всю
+    историю, и выбранный период на экране ни на что не влиял.
+    """
+    if year:
+        stmt = stmt.where(extract("year", col) == year)
+    if month:
+        stmt = stmt.where(extract("month", col) == month)
+    return stmt
 
 
 # ================= ОСТАТКИ ПО ПОДРАЗДЕЛЕНИЯМ =================
@@ -366,10 +379,9 @@ async def recompute_product(db: AsyncSession, product_id: int):
 
 # ================= MATERIAL RECEIPTS =================
 @router.get("/material-receipts", response_model=list[ReceiptOut])
-async def list_receipts(_: User = Depends(require("materials:view")), db: AsyncSession = Depends(get_db)):
-    res = await db.execute(
-        select(MaterialReceipt).options(selectinload(MaterialReceipt.material), selectinload(MaterialReceipt.organization)).order_by(MaterialReceipt.doc_date.desc(), MaterialReceipt.id.desc())
-    )
+async def list_receipts(year: int | None = None, month: int | None = None, _: User = Depends(require("materials:view")), db: AsyncSession = Depends(get_db)):
+    stmt = select(MaterialReceipt).options(selectinload(MaterialReceipt.material), selectinload(MaterialReceipt.organization)).order_by(MaterialReceipt.doc_date.desc(), MaterialReceipt.id.desc())
+    res = await db.execute(by_period(stmt, MaterialReceipt.doc_date, year, month))
     return res.scalars().all()
 
 
@@ -430,10 +442,9 @@ async def delete_receipt(rid: int, current: User = Depends(require("materials:de
 
 # ================= MATERIAL ISSUES =================
 @router.get("/material-issues", response_model=list[IssueOut])
-async def list_issues(_: User = Depends(require("materials:view")), db: AsyncSession = Depends(get_db)):
-    res = await db.execute(
-        select(MaterialIssue).options(selectinload(MaterialIssue.material)).order_by(MaterialIssue.doc_date.desc(), MaterialIssue.id.desc())
-    )
+async def list_issues(year: int | None = None, month: int | None = None, _: User = Depends(require("materials:view")), db: AsyncSession = Depends(get_db)):
+    stmt = select(MaterialIssue).options(selectinload(MaterialIssue.material)).order_by(MaterialIssue.doc_date.desc(), MaterialIssue.id.desc())
+    res = await db.execute(by_period(stmt, MaterialIssue.doc_date, year, month))
     return res.scalars().all()
 
 
@@ -497,10 +508,9 @@ async def delete_issue(rid: int, current: User = Depends(require("materials:dele
 
 # ================= PRODUCTION =================
 @router.get("/productions", response_model=list[ProductionOut])
-async def list_prod(_: User = Depends(require("production:view")), db: AsyncSession = Depends(get_db)):
-    res = await db.execute(
-        select(Production).options(selectinload(Production.product)).order_by(Production.doc_date.desc(), Production.id.desc())
-    )
+async def list_prod(year: int | None = None, month: int | None = None, _: User = Depends(require("production:view")), db: AsyncSession = Depends(get_db)):
+    stmt = select(Production).options(selectinload(Production.product)).order_by(Production.doc_date.desc(), Production.id.desc())
+    res = await db.execute(by_period(stmt, Production.doc_date, year, month))
     return res.scalars().all()
 
 
@@ -562,11 +572,11 @@ async def delete_prod(rid: int, current: User = Depends(require("production:dele
 
 # ================= SALES =================
 @router.get("/sales", response_model=list[SaleOut])
-async def list_sales(current: User = Depends(require("sales:view")), db: AsyncSession = Depends(get_db)):
+async def list_sales(year: int | None = None, month: int | None = None, current: User = Depends(require("sales:view")), db: AsyncSession = Depends(get_db)):
     stmt = select(Sale).options(selectinload(Sale.product), selectinload(Sale.organization)).order_by(Sale.doc_date.desc(), Sale.id.desc())
     if current.organization_id and not current.is_superadmin:
         stmt = stmt.where(Sale.organization_id == current.organization_id)
-    res = await db.execute(stmt)
+    res = await db.execute(by_period(stmt, Sale.doc_date, year, month))
     return res.scalars().all()
 
 
