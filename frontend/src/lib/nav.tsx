@@ -19,6 +19,7 @@ export const icons = {
   report: I("M3 3v18h18M18 17V9M13 17V5M8 17v-3"),
   users: I("M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM23 21v-2a4 4 0 0 0-3-3.87M16 3.13A4 4 0 0 1 16 11"),
   roles: I("M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10ZM9 12l2 2 4-4"),
+  closing: I("M7 11V7a5 5 0 0 1 10 0v4M5 11h14v10H5V11Zm7 4v2"),
 };
 
 export interface NavItem {
@@ -33,6 +34,7 @@ export const NAV: NavItem[] = [
   { to: "/", label: "Дашборд", perm: "dashboard:view", icon: icons.dashboard, group: "Обзор" },
   { to: "/reports", label: "Отчёты", perm: "reports:view", icon: icons.report, group: "Обзор" },
   { to: "/ledgers", label: "Ведомости Дт-Кт", perm: "reports:view", icon: icons.counter, group: "Обзор" },
+  { to: "/closing", label: "Закрытие месяца", perm: "closing:view", icon: icons.closing, group: "Обзор" },
   { to: "/transactions", label: "Банк и Касса", perm: "transactions:view", icon: icons.tx, group: "Финансы" },
   { to: "/organizations", label: "Организации", perm: "organizations:view", icon: icons.org, group: "Финансы" },
   { to: "/directories", label: "Справочники", perm: "articles:view", icon: icons.counter, group: "Финансы" },

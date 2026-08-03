@@ -2,6 +2,7 @@ import { ReactNode } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import Layout from "./components/Layout";
 import { Spinner } from "./components/ui";
+import Closing from "./pages/Closing";
 import Dashboard from "./pages/Dashboard";
 import Directories from "./pages/Directories";
 import Exchange from "./pages/Exchange";
@@ -69,6 +70,7 @@ export default function App() {
                 <Route path="/" element={<Guard perm="dashboard:view"><Dashboard /></Guard>} />
                 <Route path="/reports" element={<Guard perm="reports:view"><Reports /></Guard>} />
                 <Route path="/ledgers" element={<Guard perm="reports:view"><Ledgers /></Guard>} />
+                <Route path="/closing" element={<Guard perm="closing:view"><Closing /></Guard>} />
                 <Route path="/directories" element={<Guard perm="articles:view"><Directories /></Guard>} />
                 <Route path="/transactions" element={<Guard perm="transactions:view"><Transactions /></Guard>} />
                 <Route path="/organizations" element={<Guard perm="organizations:view"><Organizations /></Guard>} />

@@ -20,7 +20,7 @@ import calendar
 from datetime import date
 
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .models import PeriodClose, PeriodSetting, Setting
@@ -63,6 +63,49 @@ def valid_period(period: str) -> str:
 
 async def closed_periods(db: AsyncSession) -> set[str]:
     return set((await db.execute(select(PeriodClose.period))).scalars().all())
+
+
+def next_period(period: str) -> str:
+    """«2026-12» -> «2027-01»."""
+    y, m = (int(x) for x in period.split("-")[:2])
+    return f"{y + 1}-01" if m == 12 else f"{y}-{m + 1:02d}"
+
+
+async def first_data_period(db: AsyncSession) -> str | None:
+    """Самый ранний месяц, в котором вообще есть данные.
+
+    С него начинается очередь закрытия: закрывать можно только подряд, иначе
+    «закрытый» месяц опирался бы на незакрытую базу и менялся бы задним числом.
+    """
+    from .models import (  # локально, чтобы не тянуть модели в шапку
+        BankAccount, CashRegister, Loan, LoanEntry, MaterialIssue, MaterialReceipt,
+        Organization, PayrollEntry, Production, Sale, Service, Transaction,
+    )
+
+    dates: list[date] = []
+    for model in (Transaction, MaterialReceipt, MaterialIssue, Production, Sale,
+                  Service, LoanEntry):
+        d = await db.scalar(select(func.min(model.doc_date)))
+        if d:
+            dates.append(d)
+    for model in (Organization, BankAccount, CashRegister, Loan):
+        d = await db.scalar(select(func.min(model.opening_date)))
+        if d:
+            dates.append(d)
+
+    periods = [period_of(d) for d in dates]
+    payroll = await db.scalar(select(func.min(PayrollEntry.period)))
+    if payroll:
+        periods.append(str(payroll))
+    return min(periods) if periods else None
+
+
+async def period_to_close(db: AsyncSession) -> str | None:
+    """Какой месяц закрывается следующим (None — закрывать нечего)."""
+    closed = await closed_periods(db)
+    if closed:
+        return next_period(max(closed))
+    return await first_data_period(db)
 
 
 async def is_closed(db: AsyncSession, d: date | None) -> bool:

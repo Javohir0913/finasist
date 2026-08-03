@@ -20,13 +20,22 @@
 """
 from datetime import date, timedelta
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
+from ..events import record
 from ..models import ExchangeRate, PayrollEntry, PeriodClose, Transaction, User
-from ..periods import period_bounds, period_of, valid_period
+from ..periods import (
+    closed_periods,
+    first_data_period,
+    next_period,
+    period_bounds,
+    period_to_close,
+    valid_period,
+)
 from ..security import require
 from ..stock import negative_stock_at
 from .reports import _balance_at, _balance_derived, pnl
@@ -53,6 +62,51 @@ async def list_periods(
         }
         for r in rows
     ]
+
+
+@router.get("/overview")
+async def overview(
+    _: User = Depends(require("closing:view")), db: AsyncSession = Depends(get_db)
+):
+    """Все месяцы от первого месяца с данными до текущего — для экрана закрытия.
+
+    Статусы: `closed` — закрыт, `next` — очередной на закрытие,
+    `waiting` — ждёт своей очереди.
+    """
+    first = await first_data_period(db)
+    today = date.today()
+    now = f"{today.year}-{today.month:02d}"
+    if not first:
+        return {"months": [], "next": None, "first_data_period": None}
+
+    closed = {
+        r.period: r
+        for r in (await db.execute(select(PeriodClose))).scalars().all()
+    }
+    expected = await period_to_close(db)
+
+    months, cur = [], first
+    while cur <= now:
+        row = closed.get(cur)
+        _s, end = period_bounds(cur)
+        months.append({
+            "period": cur,
+            "status": "closed" if row else ("next" if cur == expected else "waiting"),
+            "closed_at": row.closed_at if row else None,
+            "closed_by_name": row.closed_by_name if row else "",
+            "note": row.note if row else "",
+            "snapshot": (row.snapshot or {}) if row else {},
+            "ended": end < today,
+        })
+        cur = next_period(cur)
+
+    last_closed = max(closed) if closed else None
+    return {
+        "months": list(reversed(months)),
+        "next": expected,
+        "last_closed": last_closed,
+        "first_data_period": first,
+    }
 
 
 def _money(v: float) -> str:
@@ -109,19 +163,20 @@ async def period_checks(
         f"Месяц {period} уже закрыт" + (f" ({already.closed_by_name})" if already and already.closed_by_name else ""),
     ))
 
-    # 2. предыдущий месяц закрыт (иначе задним числом поменяют базу этого)
-    prev_end = start - timedelta(days=1)
-    prev = period_of(prev_end)
-    has_prev_docs = await db.scalar(
-        select(func.count(Transaction.id)).where(Transaction.doc_date <= prev_end)
-    )
-    prev_closed = (await db.get(PeriodClose, prev)) is not None
+    # 2. очередь: месяцы закрываются строго подряд, начиная с первого месяца
+    # с данными. Иначе закрытый месяц опирался бы на незакрытую базу.
+    expected = await period_to_close(db)
     checks.append(_check(
-        "prev_closed", prev_closed or not has_prev_docs, "Предыдущий месяц закрыт",
-        f"Месяц {prev} ещё открыт. Закрыть можно и так, но учтите: блокировка "
-        f"распространяется на всё до конца {period} включительно, поэтому {prev} "
-        "тоже перестанет приниматься к правке",
-        level="warn",
+        "sequence", expected == period, "Очередь соблюдена",
+        (f"Сначала нужно закрыть {expected}: месяцы закрываются подряд, "
+         f"начиная с первого месяца с данными"
+         if expected else "Закрывать нечего — в системе нет данных"),
+    ))
+
+    # 3. месяц закончился — пока он идёт, документы за него ещё поступают
+    checks.append(_check(
+        "month_ended", end < date.today(), "Месяц закончился",
+        f"Месяц {period} ещё не закончился ({end.strftime('%d.%m.%Y')})",
     ))
 
     # 3. курс на конец месяца — по нему считается вся переоценка
@@ -203,3 +258,69 @@ async def period_checks(
         "checks": checks,
         "snapshot": await period_snapshot(db, year, month),
     }
+
+
+class CloseBody(BaseModel):
+    note: str = ""
+
+
+@router.post("/{period}", status_code=201)
+async def close_period(
+    period: str,
+    body: CloseBody,
+    current: User = Depends(require("closing:create")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Закрыть месяц. Проверки те же, что показывает экран, — обойти их нельзя.
+
+    Проверяем ещё раз на сервере, а не доверяем кнопке: между открытием экрана
+    и нажатием кто-то мог провести документ и сломать сходимость.
+    """
+    period = valid_period(period)
+    year, month = (int(x) for x in period.split("-"))
+    result = await period_checks(year=year, month=month, _=current, db=db)
+    if not result["can_close"]:
+        # в сообщении именно причина, а не название проверки: названия
+        # сформулированы утвердительно («Очередь соблюдена») и в тексте отказа
+        # читались бы наоборот
+        failed = [
+            c["detail"] or c["title"]
+            for c in result["checks"] if not c["ok"] and c["level"] == "error"
+        ]
+        raise HTTPException(400, detail="Месяц не готов к закрытию. " + " ".join(failed))
+    db.add(PeriodClose(
+        period=period,
+        closed_by=current.id,
+        closed_by_name=current.full_name,
+        note=(body.note or "").strip()[:255],
+        snapshot=result["snapshot"],
+    ))
+    await db.flush()
+    await record(db, current, "create", "period_close", f"закрыт месяц {period}")
+    return {"period": period, "snapshot": result["snapshot"]}
+
+
+@router.delete("/{period}", status_code=204)
+async def reopen_period(
+    period: str,
+    current: User = Depends(require("closing:delete")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Открыть месяц обратно — только последний закрытый.
+
+    Блокировка идёт по МАКСИМАЛЬНОМУ закрытому месяцу, поэтому открытие месяца
+    из середины ничего бы не разблокировало и только запутало.
+    """
+    period = valid_period(period)
+    row = await db.get(PeriodClose, period)
+    if not row:
+        raise HTTPException(404, detail=f"Месяц {period} не закрыт")
+    last = max(await closed_periods(db))
+    if period != last:
+        raise HTTPException(
+            400,
+            detail=f"Открывать можно только последний закрытый месяц — {last}.",
+        )
+    await db.delete(row)
+    await db.flush()
+    await record(db, current, "delete", "period_close", f"открыт месяц {period}")
