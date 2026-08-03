@@ -69,7 +69,7 @@ def _check(code: str, ok: bool, title: str, detail: str = "", level: str = "erro
 async def period_snapshot(db: AsyncSession, year: int, month: int) -> dict:
     """Слепок месяца: баланс на конец, итоги ОФР, курс. Кладётся в PeriodClose."""
     _start, end = period_bounds(f"{year}-{month:02d}")
-    closing = _balance_derived(await _balance_at(db, end, year, month))
+    closing = _balance_derived(await _balance_at(db, end))
     report = await pnl(year=year, month=month, division=None, _=None, db=db)
     rate = await db.scalar(
         select(ExchangeRate.rate).where(ExchangeRate.rate_date <= end)
@@ -118,7 +118,9 @@ async def period_checks(
     prev_closed = (await db.get(PeriodClose, prev)) is not None
     checks.append(_check(
         "prev_closed", prev_closed or not has_prev_docs, "Предыдущий месяц закрыт",
-        f"Месяц {prev} ещё открыт — его правки будут менять входящие остатки этого месяца",
+        f"Месяц {prev} ещё открыт. Закрыть можно и так, но учтите: блокировка "
+        f"распространяется на всё до конца {period} включительно, поэтому {prev} "
+        "тоже перестанет приниматься к правке",
         level="warn",
     ))
 
@@ -140,26 +142,37 @@ async def period_checks(
     ))
 
     # 5. баланс сходится
-    closing = _balance_derived(await _balance_at(db, end, year, month))
+    closing = _balance_derived(await _balance_at(db, end))
     diff = round(closing["_assets"] - closing["_passive"], 2)
     checks.append(_check(
         "balance_matches", abs(diff) < 1, "Актив = Пассив",
         f"Расхождение {_money(diff)} сум",
     ))
 
-    # 6. прибыль ОФР = прирост нераспределённой прибыли.
-    # Нераспределённая прибыль в балансе — балансирующая величина, поэтому
-    # расхождение с ОФР означает, что какая-то операция не попала в отчёт.
+    # 6. СПРАВОЧНО: прибыль ОФР и прирост нераспределённой прибыли.
+    #
+    # Это НЕ равенство, и требовать его нельзя. Курсовая разница в ОФР считается
+    # по методике книги (лист «Курсовая разница»): это переоценка ВСЕГО
+    # накопленного сальдо на конец месяца, а не движение за месяц — поэтому она
+    # не складывается по месяцам. Баланс же ведётся в сумах и переоценки не
+    # содержит вовсе. Проверить видно на пустом месяце: оборотов нет, прирост
+    # нераспределённой прибыли ноль, а ОФР показывает всю накопленную переоценку.
+    #
+    # Строка остаётся как ориентир: если убрать курсовую разницу и числа всё
+    # равно расходятся на порядок, стоит посмотреть, что не попало в отчёт.
     opening = _balance_derived(await _balance_at(db, start - timedelta(days=1)))
     report = await pnl(year=year, month=month, division=None, _=None, db=db)
     delta = round(closing["_retained"] - opening["_retained"], 2)
-    gap = round(report["net"] - delta, 2)
-    checks.append(_check(
-        "profit_matches", abs(gap) < 1, "Прибыль ОФР = прирост нераспределённой прибыли",
-        f"ОФР: {_money(report['net'])}; баланс: {_money(delta)}; "
-        f"расхождение {_money(gap)} сум",
-        level="warn",
-    ))
+    fx_net = round(report["fx_income"] - report["fx_loss"], 2)
+    checks.append({
+        "code": "profit_reference", "ok": True, "level": "info",
+        "title": "Прибыль ОФР и прирост нераспределённой прибыли",
+        "detail": (
+            f"ОФР: {_money(report['net'])} сум (в т.ч. курсовая разница "
+            f"{_money(fx_net)}); баланс: {_money(delta)} сум. "
+            "Величины не обязаны совпадать: переоценка в баланс не входит."
+        ),
+    })
 
     # 7. зарплата за месяц рассчитана
     payroll_cnt = await db.scalar(

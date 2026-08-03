@@ -720,10 +720,20 @@ async def taxes_report(
     return await _taxes_core(db, year, month)
 
 
-async def _taxes_core(db: AsyncSession, year, month):
-    """Авто-расчёт налогов: начислено — из операций (как формулы Excel), долг = нач + начислено − оплачено."""
+async def _taxes_core(db: AsyncSession, year, month, on: date | None = None):
+    """Авто-расчёт налогов: начислено — из операций (как формулы Excel), долг = нач + начислено − оплачено.
+
+    Два режима:
+      · `year`/`month` — отчёт ЗА ПЕРИОД (начислено и оплачено внутри месяца);
+      · `on` — состояние НА ДАТУ, нарастающим итогом с начала учёта. Балансу
+        нужен именно он: неоплаченный июньский налог обязан висеть в июльском
+        балансе, а раньше туда попадали только начисления самого июля.
+    """
     rates = await get_rates(db)
+
     async def s(stmt, col):
+        if on is not None:
+            return float(await db.scalar(stmt.where(col <= on)) or 0)
         return float(await db.scalar(_period(stmt, year, month, col)) or 0)
 
     # --- НДС = выходной НДС − входной НДС ---
@@ -740,7 +750,9 @@ async def _taxes_core(db: AsyncSession, year, month):
         func.coalesce(func.sum(PayrollEntry.inps), 0),
         func.coalesce(func.sum(PayrollEntry.esp), 0),
     )
-    if year and month:
+    if on is not None:
+        pstmt = pstmt.where(PayrollEntry.period <= f"{on.year}-{on.month:02d}")
+    elif year and month:
         pstmt = pstmt.where(PayrollEntry.period == f"{year}-{int(month):02d}")
     ndfl_a, inps_a, esp_a = (await db.execute(pstmt)).one()
     ndfl_a, inps_a, esp_a = float(ndfl_a), float(inps_a), float(esp_a)
@@ -764,7 +776,7 @@ async def _taxes_core(db: AsyncSession, year, month):
         )
         return await s(stmt, Transaction.doc_date)
 
-    p_start, p_end = _period_bounds(year, month)
+    p_start, p_end = (None, on) if on is not None else _period_bounds(year, month)
     taxes = (await db.execute(select(Tax).order_by(Tax.id))).scalars().all()
     rows = []
     tot = {"start": 0.0, "accrued": 0.0, "paid": 0.0, "end": 0.0}
@@ -1026,7 +1038,7 @@ async def loans_report(
 
 
 # ================= Баланс (Форма №1) =================
-async def _balance_at(db: AsyncSession, on: date | None, year=None, month=None) -> dict:
+async def _balance_at(db: AsyncSession, on: date | None) -> dict:
     """Показатели баланса на дату (None = на текущий момент).
 
     ВСЁ здесь считается именно НА ДАТУ. Раньше часть показателей бралась «как
@@ -1055,7 +1067,9 @@ async def _balance_at(db: AsyncSession, on: date | None, year=None, month=None) 
         return sum(L(x, side) for x in ledgers)
 
     # --- налоги и займы ---
-    tax_data = await _taxes_core(db, year, month)
+    # налоги — нарастающим итогом НА ДАТУ, а не за месяц: в балансе висит вся
+    # неоплаченная задолженность, включая начисленную в прошлых месяцах
+    tax_data = await _taxes_core(db, None, None, on=on)
     tax_debt = float(tax_data["totals"]["end"])
     tax_overpay = float(sum(r["overpay"] for r in tax_data["rows"]))
     loans = await loan_balances_at(db, on)
@@ -1193,7 +1207,7 @@ async def balance(
     opening = _balance_derived(
         await _balance_at(db, start - timedelta(days=1) if start else None)
     )
-    closing = _balance_derived(await _balance_at(db, end, year, month))
+    closing = _balance_derived(await _balance_at(db, end))
 
     def build(spec):
         out = []

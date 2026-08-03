@@ -71,24 +71,47 @@ async def is_closed(db: AsyncSession, d: date | None) -> bool:
     return period_of(d) in await closed_periods(db)
 
 
+async def _blocked_by(db: AsyncSession, period: str | None) -> str | None:
+    """Какой закрытый месяц запрещает запись в этот период (или None).
+
+    Запрещён не только САМ закрытый месяц, но и всё, что раньше него. Причина:
+    остатки и себестоимость выводятся полным реплеем движений с начала учёта
+    (см. `routers/inventory.py`), поэтому документ, датированный до закрытого
+    месяца, меняет среднюю цену списаний ВНУТРИ него — а значит и его ОФР.
+    Без этого правила закрытие июля обходилось бы вводом документа в июнь.
+    """
+    if not period:
+        return None
+    closed = await closed_periods(db)
+    if not closed:
+        return None
+    last = max(closed)
+    return last if period <= last else None
+
+
 async def assert_open(db: AsyncSession, *dates: date | None, what: str = "документ") -> None:
-    """Разрешить запись, только если ни одна из дат не попадает в закрытый месяц.
+    """Разрешить запись, только если все даты позже последнего закрытого месяца.
 
     Даты `None` игнорируются: у документа без даты периода нет.
     """
-    wanted = {period_of(d) for d in dates if d}
-    if not wanted:
-        return
-    closed = wanted & await closed_periods(db)
-    if not closed:
-        return
-    period = sorted(closed)[0]
-    row = await db.get(PeriodClose, period)
+    for d in sorted({period_of(x) for x in dates if x}):
+        blocker = await _blocked_by(db, d)
+        if blocker:
+            await _raise_closed(db, blocker, d, what)
+
+
+async def _raise_closed(db: AsyncSession, blocker: str, period: str, what: str) -> None:
+    row = await db.get(PeriodClose, blocker)
     who = f" (закрыл: {row.closed_by_name})" if row and row.closed_by_name else ""
+    same = period == blocker
+    reason = (
+        "за закрытый период" if same
+        else f"за {period}: более ранняя дата пересчитала бы закрытый месяц"
+    )
     raise HTTPException(
         409,
         detail=(
-            f"Месяц {period} закрыт{who}. Изменить {what} за закрытый период нельзя — "
+            f"Месяц {blocker} закрыт{who}. Изменить {what} {reason} нельзя — "
             "сначала откройте месяц в разделе «Закрытие месяца»."
         ),
     )
@@ -116,16 +139,9 @@ async def assert_period_open(db: AsyncSession, period: str | None, what: str = "
     """То же, но период задан строкой «YYYY-MM» (зарплата ведётся так)."""
     if not period:
         return
-    if str(period) in await closed_periods(db):
-        row = await db.get(PeriodClose, str(period))
-        who = f" (закрыл: {row.closed_by_name})" if row and row.closed_by_name else ""
-        raise HTTPException(
-            409,
-            detail=(
-                f"Месяц {period} закрыт{who}. Изменить {what} за закрытый период нельзя — "
-                "сначала откройте месяц в разделе «Закрытие месяца»."
-            ),
-        )
+    blocker = await _blocked_by(db, str(period))
+    if blocker:
+        await _raise_closed(db, blocker, str(period), what)
 
 
 # ---------------------------------------------------------------- настройки
