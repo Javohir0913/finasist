@@ -2,6 +2,7 @@ import { useState } from "react";
 import api, { apiError } from "../api/client";
 import { Badge, Card, EmptyState, Field, Modal, MoneyInput, SectionTitle, Spinner } from "../components/ui";
 import { fmtDate, fmtNum } from "../lib/format";
+import { LockedMark, LockedNotice, useLock } from "../lib/lock";
 import { FilterBar, sum, text, useFilter, uzs } from "../lib/table";
 import { useApi } from "../lib/useApi";
 import { useAuth } from "../store/auth";
@@ -17,6 +18,7 @@ interface Entry {
 
 export default function Loans() {
   const { can } = useAuth();
+  const { isLocked, isPeriodLocked, minOpenDate, hint } = useLock();
   const { data, loading, reload } = useApi<L[]>("/loans");
   const [open, setOpen] = useState(false); const [editing, setEditing] = useState<L | null>(null);
   const [moves, setMoves] = useState<L | null>(null);
@@ -87,8 +89,10 @@ export default function Loans() {
                 <Badge tone={l.direction === "received" ? "rose" : "emerald"}>{l.direction === "received" ? "Получен" : "Выдан"}</Badge>
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-slate-500">{l.currency}</span>
-                  {can("loans:edit") && <button onClick={() => { setEditing(l); setForm({ ...l }); setErr(""); setOpen(true); }} className="text-slate-500 hover:text-accent-soft">✎</button>}
-                  {can("loans:delete") && <button onClick={() => remove(l.id)} className="text-slate-500 hover:text-rose-300">✕</button>}
+                  {isLocked(l.opening_date) ? <LockedMark title={hint} /> : <>
+                    {can("loans:edit") && <button onClick={() => { setEditing(l); setForm({ ...l }); setErr(""); setOpen(true); }} className="text-slate-500 hover:text-accent-soft">✎</button>}
+                    {can("loans:delete") && <button onClick={() => remove(l.id)} className="text-slate-500 hover:text-rose-300">✕</button>}
+                  </>}
                 </div>
               </div>
               <div className="text-lg font-semibold text-ink mt-3">{l.counterparty}</div>
@@ -105,6 +109,7 @@ export default function Loans() {
 
       <Modal open={open} onClose={() => setOpen(false)} title={editing ? "Редактировать займ" : "Новый займ"}>
         {err && <div className="mb-4 rounded-xl bg-rose-500/12 border border-rose-500/25 text-rose-300 text-sm px-3.5 py-2.5">{err}</div>}
+        <LockedNotice date={form.opening_date} />
         <div className="grid grid-cols-2 gap-4">
           <div className="col-span-2"><Field label="Контрагент"><input className="input" value={form.counterparty} onChange={(e) => setForm({ ...form, counterparty: e.target.value })} /></Field></div>
           <Field label="Тип"><select className="input" value={form.direction} onChange={(e) => setForm({ ...form, direction: e.target.value })}><option value="received">Получен</option><option value="given">Выдан</option></select></Field>
@@ -112,7 +117,7 @@ export default function Loans() {
           <Field label="Сумма договора"><MoneyInput value={form.principal} onChange={(v) => setForm({ ...form, principal: v })} /></Field>
           <Field label="Входящее сальдо"><MoneyInput value={form.opening_uzs} onChange={(v) => setForm({ ...form, opening_uzs: v })} /></Field>
           <Field label="Дата сальдо *">
-            <input type="date" className="input" value={form.opening_date || ""}
+            <input type="date" min={minOpenDate || undefined} className="input" value={form.opening_date || ""}
               onChange={(e) => setForm({ ...form, opening_date: e.target.value })} />
             {dateMissing && (
               <p className="mt-1 text-xs text-amber-300">
@@ -136,6 +141,7 @@ export default function Loans() {
 
 function LoanMoves({ loan, onClose }: { loan: L; onClose: () => void }) {
   const { can } = useAuth();
+  const { isLocked, isPeriodLocked, minOpenDate, hint } = useLock();
   const { data, loading, reload } = useApi<Entry[]>(`/loan-entries?loan_id=${loan.id}`, [loan.id]);
   const blank = { doc_date: new Date().toISOString().slice(0, 10), kind: "debit", amount_uzs: 0, note: "" };
   const [form, setForm] = useState<any>(blank);
@@ -156,9 +162,10 @@ function LoanMoves({ loan, onClose }: { loan: L; onClose: () => void }) {
   return (
     <Modal open onClose={onClose} title={`Движения — ${loan.counterparty}`} width="max-w-2xl">
       {err && <div className="mb-4 rounded-xl bg-rose-500/12 border border-rose-500/25 text-rose-300 text-sm px-3.5 py-2.5">{err}</div>}
+      <LockedNotice date={form.doc_date} />
       {can("loans:create") && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-          <Field label="Дата"><input type="date" className="input" value={form.doc_date} onChange={(e) => setForm({ ...form, doc_date: e.target.value })} /></Field>
+          <Field label="Дата"><input type="date" min={minOpenDate || undefined} className="input" value={form.doc_date} onChange={(e) => setForm({ ...form, doc_date: e.target.value })} /></Field>
           <Field label="Операция">
             <select className="input" value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value })}>
               <option value="debit">Выдача (дебет)</option>
@@ -182,7 +189,7 @@ function LoanMoves({ loan, onClose }: { loan: L; onClose: () => void }) {
                   <td className="td"><Badge tone={e.kind === "debit" ? "emerald" : "rose"}>{e.kind === "debit" ? "Выдача" : "Погашение"}</Badge></td>
                   <td className="td text-right tabular-nums">{fmtNum(e.amount_uzs)}</td>
                   <td className="td text-slate-400">{e.note || "—"}</td>
-                  <td className="td text-right">{can("loans:delete") && <button onClick={() => remove(e.id)} className="text-slate-500 hover:text-rose-300">✕</button>}</td>
+                  <td className="td text-right">{isLocked(e.doc_date) ? <LockedMark title={hint} /> : can("loans:delete") && <button onClick={() => remove(e.id)} className="text-slate-500 hover:text-rose-300">✕</button>}</td>
                 </tr>
               ))}
             </tbody>

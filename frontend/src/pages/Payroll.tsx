@@ -2,6 +2,7 @@ import { useState } from "react";
 import api, { apiError } from "../api/client";
 import { Badge, Card, EmptyState, Field, Modal, MoneyInput, SearchSelect, SectionTitle, Spinner } from "../components/ui";
 import { fmtNum } from "../lib/format";
+import { LockedMark, LockedNotice, useLock } from "../lib/lock";
 import { ExportButton } from "../lib/period";
 import { FilterBar, sum, text, TotalRow, useFilter, uzs } from "../lib/table";
 import { useApi } from "../lib/useApi";
@@ -52,6 +53,7 @@ export default function Payroll() {
 
 function Employees() {
   const { can } = useAuth();
+  const { isLocked, isPeriodLocked, minOpenDate, hint } = useLock();
   const { data, loading, reload } = useApi<Emp[]>("/employees");
   const { data: divs } = useApi<Div[]>("/divisions");
   const { data: expCodes } = useApi<Code[]>("/expense-codes");
@@ -239,6 +241,7 @@ function CalcPreview({ form, rates, emp }: {
 
 function PayrollTab() {
   const { can } = useAuth();
+  const { isLocked, isPeriodLocked, minOpenDate, hint } = useLock();
   const [period, setPeriod] = useState(new Date().toISOString().slice(0, 7));
   const { data, loading, reload } = useApi<PE[]>(`/payroll?period=${period}`, [period]);
   const { data: emps } = useApi<Emp[]>("/employees");
@@ -384,9 +387,11 @@ function PayrollTab() {
                     <td className={`td text-right font-semibold border-l border-line tabular-nums ${Number(p.balance) > 0 ? "text-rose-300" : "text-slate-400"}`}>{fmtNum(p.balance)}</td>
                     <td className="td text-right text-amber-300 tabular-nums">{fmtNum(p.esp)}</td>
                     <td className="td text-right whitespace-nowrap">
-                      {can("payroll:edit") && Number(p.balance) > 0 && <button onClick={() => payRest(p)} className="chip bg-emerald-500/12 text-emerald-300 border border-emerald-500/20 mr-2" title="Выплатить остаток">Выплатить</button>}
-                      {can("payroll:edit") && <button onClick={() => openEdit(p)} className="text-slate-500 hover:text-accent-soft mr-3">✎</button>}
-                      {can("payroll:delete") && <button onClick={() => remove(p.id)} className="text-slate-500 hover:text-rose-300">✕</button>}
+                      {isPeriodLocked(p.period) ? <LockedMark title={hint} /> : <>
+                        {can("payroll:edit") && Number(p.balance) > 0 && <button onClick={() => payRest(p)} className="chip bg-emerald-500/12 text-emerald-300 border border-emerald-500/20 mr-2" title="Выплатить остаток">Выплатить</button>}
+                        {can("payroll:edit") && <button onClick={() => openEdit(p)} className="text-slate-500 hover:text-accent-soft mr-3">✎</button>}
+                        {can("payroll:delete") && <button onClick={() => remove(p.id)} className="text-slate-500 hover:text-rose-300">✕</button>}
+                      </>}
                     </td>
                   </tr>
                 );
@@ -424,6 +429,7 @@ function PayrollTab() {
 
       <Modal open={open} onClose={() => setOpen(false)} title={editing ? `Расчёт за ${period} — ${editing.employee?.full_name}` : `Начисление за ${period}`} width="max-w-3xl">
         {err && <div className="mb-4 rounded-xl bg-rose-500/12 border border-rose-500/25 text-rose-300 text-sm px-3.5 py-2.5">{err}</div>}
+        <LockedNotice period={form.period} />
         {!editing && (
           <div className="mb-4">
             <Field label="Сотрудник">

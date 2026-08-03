@@ -36,7 +36,7 @@ from ..periods import (
     period_to_close,
     valid_period,
 )
-from ..security import require
+from ..security import get_current_user, require
 from ..stock import negative_stock_at
 from .reports import _balance_at, _balance_derived, pnl
 
@@ -62,6 +62,28 @@ async def list_periods(
         }
         for r in rows
     ]
+
+
+@router.get("/lock")
+async def lock_state(
+    _: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+):
+    """Граница закрытого периода — для интерфейса. Доступна любому вошедшему.
+
+    Права `closing:view` тут намеренно не требуется: это нужно КАЖДОМУ экрану,
+    чтобы показать закрытые месяцы только для чтения, а не давать заполнить
+    форму и упереться в отказ при сохранении.
+    """
+    closed = await closed_periods(db)
+    if not closed:
+        return {"last_closed": None, "min_open_date": None}
+    last = max(closed)
+    _s, end = period_bounds(last)
+    return {
+        "last_closed": last,
+        # первая дата, которой ещё можно датировать документ
+        "min_open_date": (end + timedelta(days=1)).isoformat(),
+    }
 
 
 @router.get("/overview")
@@ -179,12 +201,21 @@ async def period_checks(
         f"Месяц {period} ещё не закончился ({end.strftime('%d.%m.%Y')})",
     ))
 
-    # 3. курс на конец месяца — по нему считается вся переоценка
+    # 4. курс на конец месяца — по нему идёт переоценка сальдо.
+    #
+    # Это ПРЕДУПРЕЖДЕНИЕ, а не запрет. Курс обязателен только в дни, когда есть
+    # операция (это требует _resolve_rate при сохранении), а для переоценки
+    # rate_on берёт последний известный курс не позже даты. Раньше это было
+    # опасно: курс за 31-е могли внести уже после закрытия, и переоценка
+    # закрытого месяца менялась. Теперь дату внутри закрытого месяца
+    # блокирует assert_open, поэтому задним числом курс не появится.
     rate_end = await db.scalar(select(ExchangeRate.rate).where(ExchangeRate.rate_date == end))
     checks.append(_check(
         "rate_month_end", rate_end is not None, "Курс на конец месяца введён",
-        f"Курс доллара на {end.strftime('%d.%m.%Y')} не введён — переоценка "
-        "посчитается по более раннему курсу и изменится, как только курс внесут",
+        f"Курса на {end.strftime('%d.%m.%Y')} нет — переоценка пойдёт по последнему "
+        "известному курсу до этой даты. Закрыть можно, но если нужен точный курс "
+        "месяца, внесите его перед закрытием",
+        level="warn",
     ))
 
     # 4. склад не в минусе

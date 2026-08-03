@@ -3,6 +3,7 @@ import api, { apiError } from "../api/client";
 import ImportModal from "../components/ImportModal";
 import { Badge, Card, EmptyState, Field, Modal, MoneyInput, SearchSelect, SectionTitle, Spinner } from "../components/ui";
 import { fmtDate, fmtNum, fmtUSD2 } from "../lib/format";
+import { LockedMark, LockedNotice, useLock } from "../lib/lock";
 import { ExportButton, PeriodPicker, usePeriod, withPeriod } from "../lib/period";
 import { FilterBar, sum, text, TotalRow, useFilter } from "../lib/table";
 import { useApi } from "../lib/useApi";
@@ -32,6 +33,7 @@ const empty = {
 
 export default function Transactions() {
   const { can } = useAuth();
+  const { isLocked, minOpenDate, hint } = useLock();
   const [filter, setFilter] = useState("");
   const { data, loading, reload } = useApi<Tx[]>(`/transactions${filter ? `?direction=${filter}` : ""}`, [filter]);
   const { data: orgs } = useApi<Org[]>("/organizations");
@@ -134,7 +136,7 @@ export default function Transactions() {
   const cfMissing = !String(form.cashflow_code || "").trim();
 
   const save = async () => {
-    if (rateMissing || cfMissing) return;
+    if (rateMissing || cfMissing || isLocked(form.doc_date)) return;
     setErr(""); setSaving(true);
     const body = {
       ...form,
@@ -211,8 +213,10 @@ export default function Transactions() {
                     <td className="td text-right font-medium text-ink whitespace-nowrap">{fmtNum(t.amount)} <span className="text-slate-500 text-xs">{t.currency}</span></td>
                     <td className={`td text-right font-semibold whitespace-nowrap ${t.direction === "income" ? "text-emerald-300" : "text-rose-300"}`}>{t.direction === "income" ? "+" : "−"}${fmtUSD2(t.amount_usd)}</td>
                     <td className="td text-right whitespace-nowrap">
-                      {can("transactions:edit") && <button onClick={() => openEdit(t)} className="text-slate-500 hover:text-accent-soft mr-3">✎</button>}
-                      {can("transactions:delete") && <button onClick={() => remove(t.id)} className="text-slate-500 hover:text-rose-300">✕</button>}
+                      {isLocked(t.doc_date) ? <LockedMark title={hint} /> : <>
+                        {can("transactions:edit") && <button onClick={() => openEdit(t)} className="text-slate-500 hover:text-accent-soft mr-3">✎</button>}
+                        {can("transactions:delete") && <button onClick={() => remove(t.id)} className="text-slate-500 hover:text-rose-300">✕</button>}
+                      </>}
                     </td>
                   </tr>
                 ))}
@@ -232,8 +236,9 @@ export default function Transactions() {
 
       <Modal open={open} onClose={() => setOpen(false)} title={editing ? `Операция №${editing.id}` : "Новая операция"} width="max-w-2xl">
         {err && <div className="mb-4 rounded-xl bg-rose-500/12 border border-rose-500/25 text-rose-300 text-sm px-3.5 py-2.5">{err}</div>}
+        <LockedNotice date={form.doc_date} />
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Дата"><input type="date" className="input" value={form.doc_date} onChange={(e) => setForm({ ...form, doc_date: e.target.value })} /></Field>
+          <Field label="Дата"><input type="date" min={minOpenDate || undefined} className="input" value={form.doc_date} onChange={(e) => setForm({ ...form, doc_date: e.target.value })} /></Field>
           <Field label="Тип">
             <select className="input" value={form.direction} onChange={(e) => setForm({ ...form, direction: e.target.value })}>
               <option value="income">Приход</option><option value="expense">Расход</option>

@@ -2,6 +2,7 @@ import { useState } from "react";
 import api, { apiError } from "../api/client";
 import { Badge, Card, EmptyState, Field, Modal, MoneyInput, SectionTitle, Spinner } from "../components/ui";
 import { fmtDate, fmtNum } from "../lib/format";
+import { LockedMark, LockedNotice, useLock } from "../lib/lock";
 import { useApi } from "../lib/useApi";
 import { useAuth } from "../store/auth";
 
@@ -14,6 +15,7 @@ const isAuto = (name: string) => AUTO.some((k) => (name || "").toLowerCase().inc
 
 export default function Taxes() {
   const { can } = useAuth();
+  const { isLocked, isPeriodLocked, minOpenDate, hint } = useLock();
   const { data, loading, reload } = useApi<{ rows: TRow[]; totals: any }>("/reports/taxes");
   const [open, setOpen] = useState(false); const [editing, setEditing] = useState<TRow | null>(null);
   const empty = { name: "", period: "", accrued_date: "", debt_start: 0, accrued: 0, paid: 0 };
@@ -60,8 +62,10 @@ export default function Taxes() {
                   <td className="td text-right font-semibold text-ink">{fmtNum(t.debt_end)}</td>
                   <td className="td text-right text-slate-400">{t.overpay ? fmtNum(t.overpay) : "—"}</td>
                   <td className="td text-right whitespace-nowrap">
-                    {can("taxes:edit") && <button onClick={() => { setEditing(t); setForm({ name: t.name, period: "", accrued_date: t.accrued_date || "", debt_start: t.debt_start, accrued: t.accrued, paid: t.paid }); setErr(""); setOpen(true); }} className="text-slate-500 hover:text-accent-soft mr-3">✎</button>}
-                    {can("taxes:delete") && <button onClick={() => remove(t.id)} className="text-slate-500 hover:text-rose-300">✕</button>}
+                    {isLocked(t.accrued_date) ? <LockedMark title={hint} /> : <>
+                      {can("taxes:edit") && <button onClick={() => { setEditing(t); setForm({ name: t.name, period: "", accrued_date: t.accrued_date || "", debt_start: t.debt_start, accrued: t.accrued, paid: t.paid }); setErr(""); setOpen(true); }} className="text-slate-500 hover:text-accent-soft mr-3">✎</button>}
+                      {can("taxes:delete") && <button onClick={() => remove(t.id)} className="text-slate-500 hover:text-rose-300">✕</button>}
+                    </>}
                   </td>
                 </tr>
               ))}
@@ -87,6 +91,7 @@ export default function Taxes() {
       </p>
       <Modal open={open} onClose={() => setOpen(false)} title={editing ? "Налог: остаток и ручные значения" : "Новый налог"}>
         {err && <div className="mb-4 rounded-xl bg-rose-500/12 border border-rose-500/25 text-rose-300 text-sm px-3.5 py-2.5">{err}</div>}
+        <LockedNotice date={form.accrued_date} />
         <div className="grid grid-cols-2 gap-4">
           <div className="col-span-2"><Field label="Наименование налога"><input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} disabled={!!editing} /></Field></div>
           <Field label="Долг на начало"><MoneyInput value={form.debt_start} onChange={(v) => setForm({ ...form, debt_start: v })} /></Field>
@@ -94,7 +99,7 @@ export default function Taxes() {
           {manual && (
             <div className="col-span-2">
               <Field label="Дата начисления *">
-                <input type="date" className="input" value={form.accrued_date || ""}
+                <input type="date" min={minOpenDate || undefined} className="input" value={form.accrued_date || ""}
                   onChange={(e) => setForm({ ...form, accrued_date: e.target.value })} />
                 {dateMissing ? (
                   <p className="mt-1 text-xs text-amber-300">

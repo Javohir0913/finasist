@@ -2,6 +2,7 @@ import { useState } from "react";
 import api, { apiError } from "../api/client";
 import { Badge, Card, EmptyState, Field, Modal, MoneyInput, SearchSelect, SectionTitle, Spinner } from "../components/ui";
 import { fmtDate, fmtNum } from "../lib/format";
+import { LockedMark, LockedNotice, useLock } from "../lib/lock";
 import { useApi } from "../lib/useApi";
 import { useAuth } from "../store/auth";
 
@@ -12,6 +13,7 @@ interface Svc { id: number; doc_date: string; direction: string; service_type: s
 
 export default function Services() {
   const { can } = useAuth();
+  const { isLocked, isPeriodLocked, minOpenDate, hint } = useLock();
   const [dir, setDir] = useState("received");
   const { data, loading, reload } = useApi<Svc[]>(`/services?direction=${dir}`, [dir]);
   const { data: orgs } = useApi<Org[]>("/organizations");
@@ -51,7 +53,7 @@ export default function Services() {
                   <td className="td text-right">{fmtNum(s.net)}</td>
                   <td className="td text-right text-slate-400">{fmtNum(s.vat_amount)}</td>
                   <td className="td text-right font-semibold text-ink">{fmtNum(s.amount)}</td>
-                  <td className="td text-right">{can("services:delete") && <button onClick={() => remove(s.id)} className="text-slate-500 hover:text-rose-300">✕</button>}</td>
+                  <td className="td text-right">{isLocked(s.doc_date) ? <LockedMark title={hint} /> : can("services:delete") && <button onClick={() => remove(s.id)} className="text-slate-500 hover:text-rose-300">✕</button>}</td>
                 </tr>
               ))}
               <tr className="bg-veil/[0.03] font-semibold"><td className="td text-ink" colSpan={4}>Итого (без НДС)</td><td className="td text-right text-ink">{fmtNum(total)}</td><td className="td" colSpan={3}></td></tr>
@@ -61,8 +63,9 @@ export default function Services() {
       </Card>
       <Modal open={open} onClose={() => setOpen(false)} title={dir === "received" ? "Полученная услуга" : "Оказанная услуга"} width="max-w-xl">
         {err && <div className="mb-4 rounded-xl bg-rose-500/12 border border-rose-500/25 text-rose-300 text-sm px-3.5 py-2.5">{err}</div>}
+        <LockedNotice date={form.doc_date} />
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Дата"><input type="date" className="input" value={form.doc_date} onChange={(e) => setForm({ ...form, doc_date: e.target.value })} /></Field>
+          <Field label="Дата"><input type="date" min={minOpenDate || undefined} className="input" value={form.doc_date} onChange={(e) => setForm({ ...form, doc_date: e.target.value })} /></Field>
           <Field label="Контрагент"><SearchSelect value={String(form.organization_id || "")} onChange={(v) => setForm({ ...form, organization_id: v })} placeholder="—" emptyLabel="—" options={(orgs || []).map((o) => ({ value: String(o.id), label: o.inn ? `${o.name} · ${o.inn}` : o.name, search: `${o.name} ${o.inn || ""}` }))} /></Field>
           <div className="col-span-2"><Field label="Вид услуги"><input className="input" value={form.service_type} onChange={(e) => setForm({ ...form, service_type: e.target.value })} placeholder="Транспортные услуги" /></Field></div>
           <Field label="Подразделение"><SearchSelect value={form.division} onChange={(v) => setForm({ ...form, division: v })} placeholder="—" emptyLabel="—" options={(divs || []).map((d) => ({ value: d.name, label: d.name }))} /></Field>

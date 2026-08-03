@@ -2,6 +2,7 @@ import { useState } from "react";
 import api, { apiError } from "../api/client";
 import { Badge, Card, EmptyState, Field, Modal, MoneyInput, SearchSelect, SectionTitle, Spinner } from "../components/ui";
 import { fmtDate, fmtNum, withUnit } from "../lib/format";
+import { LockedMark, LockedNotice, useLock } from "../lib/lock";
 import { FilterBar, qty, sum, text, TotalRow, useFilter, uzs } from "../lib/table";
 import { useApi } from "../lib/useApi";
 import { useAuth } from "../store/auth";
@@ -57,6 +58,7 @@ function Toolbar({ can, onAdd, label }: { can: boolean; onAdd: () => void; label
 // ---------- Приход сырья / запчастей ----------
 function Receipts({ kind }: { kind: string }) {
   const { can } = useAuth();
+  const { isLocked, isPeriodLocked, minOpenDate, hint } = useLock();
   const { materials, orgs, divs } = useRefs();
   const mats = (materials || []).filter((m) => m.kind === kind);
   const { data: all, loading, reload } = useApi<any[]>("/material-receipts");
@@ -112,8 +114,10 @@ function Receipts({ kind }: { kind: string }) {
                 <td className="td text-right text-slate-400">{Number(r.vat_amount) ? fmtNum(r.vat_amount) : "—"}</td>
                 <td className="td text-right font-semibold text-ink">{fmtNum(r.amount_gross)}</td>
                 <td className="td text-right whitespace-nowrap">
-                  {can("materials:edit") && <button onClick={() => openEdit(r)} className="text-slate-500 hover:text-accent-soft mr-3">✎</button>}
-                  {can("materials:delete") && <button onClick={() => remove(r.id)} className="text-slate-500 hover:text-rose-300">✕</button>}
+                  {isLocked(r.doc_date) ? <LockedMark title={hint} /> : <>
+                    {can("materials:edit") && <button onClick={() => openEdit(r)} className="text-slate-500 hover:text-accent-soft mr-3">✎</button>}
+                    {can("materials:delete") && <button onClick={() => remove(r.id)} className="text-slate-500 hover:text-rose-300">✕</button>}
+                  </>}
                 </td>
               </tr>))}</tbody>
             {/* количество разных материалов не складываем — только деньги */}
@@ -126,8 +130,9 @@ function Receipts({ kind }: { kind: string }) {
       </Card>
       <Modal open={open} onClose={() => setOpen(false)} title={`${editing ? "Изменить приход" : "Приход"} ${kind === "spare" ? "запчастей" : "сырья"}`}>
         {err && <div className="mb-4 rounded-xl bg-rose-500/12 border border-rose-500/25 text-rose-300 text-sm px-3.5 py-2.5">{err}</div>}
+        <LockedNotice date={form.doc_date} />
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Дата"><input type="date" className="input" value={form.doc_date} onChange={(e) => setForm({ ...form, doc_date: e.target.value })} /></Field>
+          <Field label="Дата"><input type="date" min={minOpenDate || undefined} className="input" value={form.doc_date} onChange={(e) => setForm({ ...form, doc_date: e.target.value })} /></Field>
           <Field label="Материал"><SearchSelect value={String(form.material_id || "")} onChange={(v) => setForm({ ...form, material_id: v })} placeholder="—" emptyLabel="—" options={mats.map((m) => ({ value: String(m.id), label: m.code ? `${m.code} · ${m.name}` : m.name, search: `${m.code || ""} ${m.name}` }))} /></Field>
           <Field label="Поставщик"><SearchSelect value={String(form.organization_id || "")} onChange={(v) => setForm({ ...form, organization_id: v })} placeholder="—" emptyLabel="—" options={(orgs || []).map((o) => ({ value: String(o.id), label: o.inn ? `${o.name} · ${o.inn}` : o.name, search: `${o.name} ${o.inn || ""}` }))} /></Field>
           <Field label="Подразделение"><SearchSelect value={form.division} onChange={(v) => setForm({ ...form, division: v })} placeholder="—" emptyLabel="—" options={(divs || []).map((d) => ({ value: d.name, label: d.name }))} /></Field>
@@ -157,6 +162,7 @@ function Receipts({ kind }: { kind: string }) {
 // ---------- Расход сырья / запчастей ----------
 function Issues({ kind }: { kind: string }) {
   const { can } = useAuth();
+  const { isLocked, isPeriodLocked, minOpenDate, hint } = useLock();
   const { materials, divs, expCodes } = useRefs();
   const mats = (materials || []).filter((m) => m.kind === kind);
   const { data: all, loading, reload } = useApi<any[]>("/material-issues");
@@ -203,8 +209,10 @@ function Issues({ kind }: { kind: string }) {
                 <td className="td text-right text-slate-400">{Number(r.qty) ? fmtNum(Number(r.cost_uzs) / Number(r.qty)) : "—"}</td>
                 <td className="td text-right font-semibold text-ink">{fmtNum(r.cost_uzs)}</td>
                 <td className="td text-right whitespace-nowrap">
-                  {can("materials:edit") && <button onClick={() => openEdit(r)} className="text-slate-500 hover:text-accent-soft mr-3">✎</button>}
-                  {can("materials:delete") && <button onClick={() => remove(r.id)} className="text-slate-500 hover:text-rose-300">✕</button>}
+                  {isLocked(r.doc_date) ? <LockedMark title={hint} /> : <>
+                    {can("materials:edit") && <button onClick={() => openEdit(r)} className="text-slate-500 hover:text-accent-soft mr-3">✎</button>}
+                    {can("materials:delete") && <button onClick={() => remove(r.id)} className="text-slate-500 hover:text-rose-300">✕</button>}
+                  </>}
                 </td>
               </tr>))}</tbody>
             <TotalRow cells={[null, null, null, null, null,
@@ -214,8 +222,9 @@ function Issues({ kind }: { kind: string }) {
       </Card>
       <Modal open={open} onClose={() => setOpen(false)} title={`${editing ? "Изменить расход" : "Расход"} ${kind === "spare" ? "запчастей" : "сырья"}`}>
         {err && <div className="mb-4 rounded-xl bg-rose-500/12 border border-rose-500/25 text-rose-300 text-sm px-3.5 py-2.5">{err}</div>}
+        <LockedNotice date={form.doc_date} />
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Дата"><input type="date" className="input" value={form.doc_date} onChange={(e) => setForm({ ...form, doc_date: e.target.value })} /></Field>
+          <Field label="Дата"><input type="date" min={minOpenDate || undefined} className="input" value={form.doc_date} onChange={(e) => setForm({ ...form, doc_date: e.target.value })} /></Field>
           <Field label="Материал"><SearchSelect value={String(form.material_id || "")} onChange={(v) => setForm({ ...form, material_id: v })} placeholder="—" emptyLabel="—" options={mats.map((m) => ({ value: String(m.id), label: m.code ? `${m.code} · ${m.name}` : m.name, search: `${m.code || ""} ${m.name}` }))} /></Field>
           <Field label="Подразделение"><SearchSelect value={form.division} onChange={(v) => setForm({ ...form, division: v })} placeholder="—" emptyLabel="—" options={(divs || []).map((d) => ({ value: d.name, label: d.name }))} /></Field>
           <Field label="Код расхода"><SearchSelect value={form.expense_code} onChange={(v) => setForm({ ...form, expense_code: v })} placeholder="—" emptyLabel="—" options={(expCodes || []).map((c) => ({ value: c.code, label: `${c.code} · ${c.name}` }))} /></Field>
@@ -231,6 +240,7 @@ function Issues({ kind }: { kind: string }) {
 // ---------- Производство ----------
 function Productions() {
   const { can } = useAuth();
+  const { isLocked, isPeriodLocked, minOpenDate, hint } = useLock();
   const { products, divs } = useRefs();
   const { data, loading, reload } = useApi<any[]>("/productions");
   const [open, setOpen] = useState(false); const [err, setErr] = useState(""); const [saving, setSaving] = useState(false);
@@ -291,8 +301,10 @@ function Productions() {
                 <td className="td text-right">{fmtNum(r.qty)}</td><td className="td text-right">{fmtNum(r.unit_cost)}</td>
                 <td className="td text-right font-semibold text-ink">{fmtNum(r.amount_uzs)}</td>
                 <td className="td text-right whitespace-nowrap">
-                  {can("production:edit") && <button onClick={() => openEdit(r)} className="text-slate-500 hover:text-accent-soft mr-3">✎</button>}
-                  {can("production:delete") && <button onClick={() => remove(r.id)} className="text-slate-500 hover:text-rose-300">✕</button>}
+                  {isLocked(r.doc_date) ? <LockedMark title={hint} /> : <>
+                    {can("production:edit") && <button onClick={() => openEdit(r)} className="text-slate-500 hover:text-accent-soft mr-3">✎</button>}
+                    {can("production:delete") && <button onClick={() => remove(r.id)} className="text-slate-500 hover:text-rose-300">✕</button>}
+                  </>}
                 </td>
               </tr>))}</tbody>
             {/* средняя себестоимость по фильтру = сумма ÷ количество, а не сумма цен */}
@@ -305,9 +317,10 @@ function Productions() {
       </Card>
       <Modal open={open} onClose={() => setOpen(false)} title={editing ? "Изменить выпуск" : "Производство ГП"}>
         {err && <div className="mb-4 rounded-xl bg-rose-500/12 border border-rose-500/25 text-rose-300 text-sm px-3.5 py-2.5">{err}</div>}
+        <LockedNotice date={form.doc_date} />
         <div className="grid grid-cols-2 gap-4">
           <Field label="Дата">
-            <input type="date" className="input" value={form.doc_date}
+            <input type="date" min={minOpenDate || undefined} className="input" value={form.doc_date}
               onChange={(e) => { setForm({ ...form, doc_date: e.target.value }); autoCost(form.division, e.target.value, form.qty, editing?.id); }} />
           </Field>
           <Field label="Продукция"><SearchSelect value={String(form.product_id || "")} onChange={(v) => setForm({ ...form, product_id: v })} placeholder="—" emptyLabel="—" options={(products || []).map((p) => ({ value: String(p.id), label: p.code ? `${p.code} · ${p.name}` : p.name, search: `${p.code || ""} ${p.name}` }))} /></Field>
@@ -359,6 +372,7 @@ function Productions() {
 // ---------- Продажа ----------
 function Sales() {
   const { can } = useAuth();
+  const { isLocked, isPeriodLocked, minOpenDate, hint } = useLock();
   const { products, orgs, divs } = useRefs();
   const { data, loading, reload } = useApi<any[]>("/sales");
   const [open, setOpen] = useState(false); const [err, setErr] = useState(""); const [saving, setSaving] = useState(false);
@@ -414,8 +428,10 @@ function Sales() {
                 <td className="td text-right text-slate-400">{fmtNum(r.cogs_uzs)}</td>
                 <td className="td text-right font-semibold text-ink">{fmtNum(r.revenue_net - r.cogs_uzs)}</td>
                 <td className="td text-right whitespace-nowrap">
-                  {can("sales:edit") && <button onClick={() => openEdit(r)} className="text-slate-500 hover:text-accent-soft mr-3">✎</button>}
-                  {can("sales:delete") && <button onClick={() => remove(r.id)} className="text-slate-500 hover:text-rose-300">✕</button>}
+                  {isLocked(r.doc_date) ? <LockedMark title={hint} /> : <>
+                    {can("sales:edit") && <button onClick={() => openEdit(r)} className="text-slate-500 hover:text-accent-soft mr-3">✎</button>}
+                    {can("sales:delete") && <button onClick={() => remove(r.id)} className="text-slate-500 hover:text-rose-300">✕</button>}
+                  </>}
                 </td>
               </tr>))}</tbody>
             <TotalRow cells={[null, null, null, null,
@@ -432,8 +448,9 @@ function Sales() {
       </Card>
       <Modal open={open} onClose={() => setOpen(false)} title={editing ? "Изменить продажу" : "Продажа ГП"}>
         {err && <div className="mb-4 rounded-xl bg-rose-500/12 border border-rose-500/25 text-rose-300 text-sm px-3.5 py-2.5">{err}</div>}
+        <LockedNotice date={form.doc_date} />
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Дата"><input type="date" className="input" value={form.doc_date} onChange={(e) => setForm({ ...form, doc_date: e.target.value })} /></Field>
+          <Field label="Дата"><input type="date" min={minOpenDate || undefined} className="input" value={form.doc_date} onChange={(e) => setForm({ ...form, doc_date: e.target.value })} /></Field>
           <Field label="Продукция"><SearchSelect value={String(form.product_id || "")} onChange={(v) => setForm({ ...form, product_id: v })} placeholder="—" emptyLabel="—" options={(products || []).map((p) => ({ value: String(p.id), label: p.code ? `${p.code} · ${p.name}` : p.name, search: `${p.code || ""} ${p.name}` }))} /></Field>
           <Field label="Покупатель"><SearchSelect value={String(form.organization_id || "")} onChange={(v) => setForm({ ...form, organization_id: v })} placeholder="—" emptyLabel="—" options={(orgs || []).map((o) => ({ value: String(o.id), label: o.inn ? `${o.name} · ${o.inn}` : o.name, search: `${o.name} ${o.inn || ""}` }))} /></Field>
           <Field label="Дробилка (объект отгрузки)"><SearchSelect value={form.division} onChange={(v) => setForm({ ...form, division: v })} placeholder="—" emptyLabel="—" options={(divs || []).map((d) => ({ value: d.name, label: d.name }))} /></Field>

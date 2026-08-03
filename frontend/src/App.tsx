@@ -21,6 +21,7 @@ import Settings from "./pages/Settings";
 import Taxes from "./pages/Taxes";
 import Transactions from "./pages/Transactions";
 import Users from "./pages/Users";
+import { LockProvider } from "./lib/lock";
 import { PeriodProvider } from "./lib/period";
 import { useAuth } from "./store/auth";
 import { RealtimeProvider } from "./store/realtime";
@@ -59,6 +60,7 @@ export default function App() {
 
   return (
     <RealtimeProvider>
+      <LockProvider>
       <PeriodProvider>
       <Routes>
         <Route path="/login" element={<Navigate to="/" replace />} />
@@ -92,6 +94,7 @@ export default function App() {
         />
       </Routes>
       </PeriodProvider>
+      </LockProvider>
     </RealtimeProvider>
   );
 }

@@ -3,6 +3,7 @@ import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "rec
 import api, { apiError } from "../api/client";
 import { Card, EmptyState, Field, Modal, MoneyInput, SectionTitle, Spinner } from "../components/ui";
 import { fmtDate, fmtNum } from "../lib/format";
+import { LockedMark, LockedNotice, useLock } from "../lib/lock";
 import { useApi } from "../lib/useApi";
 import { useChartColors } from "../lib/chartColors";
 import { useAuth } from "../store/auth";
@@ -11,6 +12,7 @@ interface R { id: number; rate_date: string; rate: number }
 
 export default function Exchange() {
   const { can } = useAuth();
+  const { minOpenDate, isLocked } = useLock();
   const C = useChartColors();
   const { data, loading, reload } = useApi<R[]>("/exchange");
   const [open, setOpen] = useState(false);
@@ -68,8 +70,9 @@ export default function Exchange() {
 
       <Modal open={open} onClose={() => setOpen(false)} title="Добавить курс">
         {err && <div className="mb-4 rounded-xl bg-rose-500/12 border border-rose-500/25 text-rose-300 text-sm px-3.5 py-2.5">{err}</div>}
+        <LockedNotice date={form.rate_date} />
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Дата"><input type="date" className="input" value={form.rate_date} onChange={(e) => setForm({ ...form, rate_date: e.target.value })} /></Field>
+          <Field label="Дата"><input type="date" min={minOpenDate || undefined} className="input" value={form.rate_date} onChange={(e) => setForm({ ...form, rate_date: e.target.value })} /></Field>
           <Field label="Курс, сум"><MoneyInput value={form.rate} onChange={(v) => setForm({ ...form, rate: Number(v || 0) })} /></Field>
         </div>
         <div className="flex justify-end gap-2 mt-6"><button className="btn-ghost" onClick={() => setOpen(false)}>Отмена</button><button className="btn-primary" onClick={save} disabled={saving}>Сохранить</button></div>
