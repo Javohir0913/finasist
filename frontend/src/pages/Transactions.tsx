@@ -35,7 +35,9 @@ export default function Transactions() {
   const { can } = useAuth();
   const { isLocked, minOpenDate, hint } = useLock();
   const [filter, setFilter] = useState("");
-  const { data, loading, reload } = useApi<Tx[]>(`/transactions${filter ? `?direction=${filter}` : ""}`, [filter]);
+  const { qs: periodQs } = usePeriod();
+  const listUrl = withPeriod("/transactions", periodQs, filter ? `direction=${filter}` : "");
+  const { data, loading, reload } = useApi<Tx[]>(listUrl, [listUrl]);
   const { data: orgs } = useApi<Org[]>("/organizations");
   const { data: expCodes } = useApi<Code[]>("/expense-codes");
   const { data: cfCodes } = useApi<Code[]>("/cashflow-codes");
@@ -43,7 +45,7 @@ export default function Transactions() {
   const { data: banks } = useApi<Acc[]>("/bank-accounts");
   const { data: tills } = useApi<Acc[]>("/cash-registers");
   const { data: rates, reload: reloadRates } = useApi<Rate[]>("/exchange");
-  const { qs } = usePeriod();
+  const qs = periodQs;
   const [open, setOpen] = useState(false);
   const [importing, setImporting] = useState(false);
   const [editing, setEditing] = useState<Tx | null>(null);

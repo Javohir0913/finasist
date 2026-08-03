@@ -1,7 +1,7 @@
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from sqlalchemy import extract, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -9,7 +9,7 @@ from ..database import get_db
 from ..events import record
 from ..ledger import recompute_org_balances
 from ..models import ExchangeRate, Transaction, User
-from ..periods import assert_open
+from ..periods import assert_open, visible_from
 from ..production import recompute_production
 from ..schemas import TxCreate, TxOut, TxUpdate
 from ..security import get_current_user, require
@@ -77,6 +77,8 @@ async def list_tx(
     direction: str | None = None,
     account: str | None = None,
     organization_id: int | None = None,
+    year: int | None = None,
+    month: int | None = None,
     limit: int = Query(200, le=1000),
     current: User = Depends(require("transactions:view")),
     db: AsyncSession = Depends(get_db),
@@ -87,6 +89,16 @@ async def list_tx(
         .order_by(Transaction.doc_date.desc(), Transaction.id.desc())
         .limit(limit)
     )
+    # выбранный период раньше применялся только к выгрузке в Excel, а таблица
+    # показывала последние операции за всё время — фильтр на экране не работал
+    if year:
+        stmt = stmt.where(extract("year", Transaction.doc_date) == year)
+    if month:
+        stmt = stmt.where(extract("month", Transaction.doc_date) == month)
+    # документы закрытых месяцев — только с правом closing:history
+    limit_from = await visible_from(db, current)
+    if limit_from:
+        stmt = stmt.where(Transaction.doc_date >= limit_from)
     if direction:
         stmt = stmt.where(Transaction.direction == direction)
     if account:

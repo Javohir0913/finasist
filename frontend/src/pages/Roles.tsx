@@ -7,7 +7,12 @@ import { useAuth } from "../store/auth";
 interface Role { id: number; name: string; description: string; is_system: boolean; permissions: string[] }
 interface CatItem { module: string; label: string; actions: string[] }
 
-const ACT_LABEL: any = { view: "Просмотр", create: "Создание", edit: "Изменение", delete: "Удаление", export: "Экспорт" };
+const ACT_LABEL: any = {
+  view: "Просмотр", create: "Создание", edit: "Изменение", delete: "Удаление",
+  export: "Экспорт",
+  // только у модуля «Закрытие месяца»: видеть документы закрытых периодов
+  history: "Видеть закрытые",
+};
 
 export default function Roles() {
   const { can } = useAuth();

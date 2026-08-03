@@ -21,7 +21,7 @@ from ..models import (
     Sale,
     User,
 )
-from ..periods import assert_no_closed, assert_open
+from ..periods import assert_no_closed, assert_open, visible_from
 from ..production import recompute_production
 from ..rates import get_rates
 from ..stock import apply_receipt
@@ -379,8 +379,11 @@ async def recompute_product(db: AsyncSession, product_id: int):
 
 # ================= MATERIAL RECEIPTS =================
 @router.get("/material-receipts", response_model=list[ReceiptOut])
-async def list_receipts(year: int | None = None, month: int | None = None, _: User = Depends(require("materials:view")), db: AsyncSession = Depends(get_db)):
+async def list_receipts(year: int | None = None, month: int | None = None, current: User = Depends(require("materials:view")), db: AsyncSession = Depends(get_db)):
     stmt = select(MaterialReceipt).options(selectinload(MaterialReceipt.material), selectinload(MaterialReceipt.organization)).order_by(MaterialReceipt.doc_date.desc(), MaterialReceipt.id.desc())
+    limit_from = await visible_from(db, current)
+    if limit_from:
+        stmt = stmt.where(MaterialReceipt.doc_date >= limit_from)
     res = await db.execute(by_period(stmt, MaterialReceipt.doc_date, year, month))
     return res.scalars().all()
 
@@ -442,8 +445,11 @@ async def delete_receipt(rid: int, current: User = Depends(require("materials:de
 
 # ================= MATERIAL ISSUES =================
 @router.get("/material-issues", response_model=list[IssueOut])
-async def list_issues(year: int | None = None, month: int | None = None, _: User = Depends(require("materials:view")), db: AsyncSession = Depends(get_db)):
+async def list_issues(year: int | None = None, month: int | None = None, current: User = Depends(require("materials:view")), db: AsyncSession = Depends(get_db)):
     stmt = select(MaterialIssue).options(selectinload(MaterialIssue.material)).order_by(MaterialIssue.doc_date.desc(), MaterialIssue.id.desc())
+    limit_from = await visible_from(db, current)
+    if limit_from:
+        stmt = stmt.where(MaterialIssue.doc_date >= limit_from)
     res = await db.execute(by_period(stmt, MaterialIssue.doc_date, year, month))
     return res.scalars().all()
 
@@ -508,8 +514,11 @@ async def delete_issue(rid: int, current: User = Depends(require("materials:dele
 
 # ================= PRODUCTION =================
 @router.get("/productions", response_model=list[ProductionOut])
-async def list_prod(year: int | None = None, month: int | None = None, _: User = Depends(require("production:view")), db: AsyncSession = Depends(get_db)):
+async def list_prod(year: int | None = None, month: int | None = None, current: User = Depends(require("production:view")), db: AsyncSession = Depends(get_db)):
     stmt = select(Production).options(selectinload(Production.product)).order_by(Production.doc_date.desc(), Production.id.desc())
+    limit_from = await visible_from(db, current)
+    if limit_from:
+        stmt = stmt.where(Production.doc_date >= limit_from)
     res = await db.execute(by_period(stmt, Production.doc_date, year, month))
     return res.scalars().all()
 
@@ -576,6 +585,9 @@ async def list_sales(year: int | None = None, month: int | None = None, current:
     stmt = select(Sale).options(selectinload(Sale.product), selectinload(Sale.organization)).order_by(Sale.doc_date.desc(), Sale.id.desc())
     if current.organization_id and not current.is_superadmin:
         stmt = stmt.where(Sale.organization_id == current.organization_id)
+    limit_from = await visible_from(db, current)
+    if limit_from:
+        stmt = stmt.where(Sale.doc_date >= limit_from)
     res = await db.execute(by_period(stmt, Sale.doc_date, year, month))
     return res.scalars().all()
 

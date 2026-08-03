@@ -17,13 +17,15 @@
     они меняют закрытый месяц не менее сильно, чем сам документ.
 """
 import calendar
-from datetime import date
+from datetime import date, timedelta
 
-from fastapi import HTTPException
+from fastapi import Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .database import get_db
 from .models import PeriodClose, PeriodSetting, Setting
+from .security import get_current_user
 
 # Настройки, которые имеют смысл только «на месяц»: ОС, износ, капитал.
 # Их значения баланс берёт из `PeriodSetting`, а не из текущего `Setting`.
@@ -185,6 +187,62 @@ async def assert_period_open(db: AsyncSession, period: str | None, what: str = "
     blocker = await _blocked_by(db, str(period))
     if blocker:
         await _raise_closed(db, blocker, str(period), what)
+
+
+HISTORY_PERM = "closing:history"
+
+
+async def visible_from(db: AsyncSession, user) -> date | None:
+    """С какой даты пользователю разрешено ВИДЕТЬ документы (None — всё).
+
+    Закрытый месяц можно закрыть и от чужих глаз: данные видит только тот, у
+    кого есть право «closing:history». Правка всё равно запрещена всем — за это
+    отвечает assert_open, и эти два механизма независимы.
+    """
+    from .security import has_permission
+
+    if has_permission(user, HISTORY_PERM):
+        return None
+    closed = await closed_periods(db)
+    if not closed:
+        return None
+    _start, end = period_bounds(max(closed))
+    return end + timedelta(days=1)
+
+
+async def assert_history_allowed(db: AsyncSession, user, year, month) -> None:
+    """Запретить отчёт за период, который целиком лежит в закрытых месяцах."""
+    if not year:
+        return
+    limit = await visible_from(db, user)
+    if limit is None:
+        return
+    end = date(year, 12, 31) if not month else period_bounds(f"{year}-{int(month):02d}")[1]
+    if end < limit:
+        raise HTTPException(
+            403,
+            detail=(
+                f"Данные закрытых месяцев (по {period_of(limit - timedelta(days=1))} "
+                "включительно) доступны только с правом «Закрытие месяца → Видеть закрытые»."
+            ),
+        )
+
+
+async def history_guard(
+    year: int | None = None,
+    month: int | None = None,
+    current=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Зависимость уровня роутера: закрывает отчёты за закрытые месяцы.
+
+    Вешается на весь роутер (`APIRouter(dependencies=[Depends(history_guard)])`),
+    поэтому сигнатуры эндпоинтов не меняются — а это важно: отчёты вызывают друг
+    друга напрямую (`pnl` дёргает `gp_turnover` и `fx_difference`), и переименуй
+    мы у них параметры, эти вызовы бы сломались. Прямой вызов функции проверку
+    не проходит — и правильно: внутренние расчёты должны видеть всё.
+    """
+    await assert_history_allowed(db, current, year, month)
 
 
 async def accounting_start(db: AsyncSession) -> date | None:

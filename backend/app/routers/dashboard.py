@@ -23,10 +23,15 @@ from ..models import (
     Transaction,
     User,
 )
+from ..periods import history_guard
 from ..security import require
 from .reports import _period_bounds
 
-router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
+router = APIRouter(
+    prefix="/api/dashboard",
+    tags=["dashboard"],
+    dependencies=[Depends(history_guard)],
+)
 
 
 @router.get("")

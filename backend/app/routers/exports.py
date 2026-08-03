@@ -27,11 +27,16 @@ from ..models import (
     Transaction,
     User,
 )
+from ..periods import history_guard
 from ..security import require
 from . import reports as R
 from .payroll import payroll_summary
 
-router = APIRouter(prefix="/api/export", tags=["export"])
+router = APIRouter(
+    prefix="/api/export",
+    tags=["export"],
+    dependencies=[Depends(history_guard)],
+)
 
 MONTHS = ["", "январь", "февраль", "март", "апрель", "май", "июнь",
           "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"]

@@ -47,10 +47,16 @@ from ..models import (
     Transaction,
     User,
 )
+from ..periods import history_guard
 from ..production import cost_parts
 from ..security import require
 
-router = APIRouter(prefix="/api/reports", tags=["reports"])
+router = APIRouter(
+    prefix="/api/reports",
+    tags=["reports"],
+    # закрытые месяцы видны только с правом closing:history
+    dependencies=[Depends(history_guard)],
+)
 
 
 def _period(stmt, year: int | None, month: int | None, col=None):

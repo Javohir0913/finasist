@@ -9,7 +9,7 @@ from ..database import get_db
 from ..events import record
 from ..ledger import OPENING_DATE_REQUIRED
 from ..models import AuditLog, ExchangeRate, Loan, LoanEntry, Tax, User
-from ..periods import assert_open
+from ..periods import assert_open, visible_from
 from ..rates import TAX_DATE_REQUIRED, is_auto_tax
 from ..schemas import (
     AuditOut,
@@ -241,10 +241,13 @@ async def delete_loan(
 @router.get("/loan-entries", response_model=list[LoanEntryOut])
 async def list_loan_entries(
     loan_id: int | None = None,
-    _: User = Depends(require("loans:view")),
+    current: User = Depends(require("loans:view")),
     db: AsyncSession = Depends(get_db),
 ):
     stmt = select(LoanEntry).order_by(LoanEntry.doc_date.desc(), LoanEntry.id.desc())
+    limit_from = await visible_from(db, current)
+    if limit_from:
+        stmt = stmt.where(LoanEntry.doc_date >= limit_from)
     if loan_id:
         stmt = stmt.where(LoanEntry.loan_id == loan_id)
     return (await db.execute(stmt)).scalars().all()

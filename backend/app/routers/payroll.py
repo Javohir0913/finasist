@@ -11,7 +11,7 @@ from ..database import get_db
 from ..events import record
 from ..ledger import recompute_org_balances, salary_org_by_division
 from ..models import Employee, PayrollEntry, User
-from ..periods import assert_period_open
+from ..periods import assert_period_open, visible_from
 from ..production import recompute_production
 from ..rates import get_rates
 from ..schemas import (
@@ -203,8 +203,12 @@ async def delete_employee(eid: int, current: User = Depends(require("payroll:del
 
 # ================= PAYROLL ENTRIES =================
 @router.get("/payroll", response_model=list[PayrollOut])
-async def list_payroll(period: str | None = None, _: User = Depends(require("payroll:view")), db: AsyncSession = Depends(get_db)):
+async def list_payroll(period: str | None = None, current: User = Depends(require("payroll:view")), db: AsyncSession = Depends(get_db)):
     stmt = select(PayrollEntry).options(selectinload(PayrollEntry.employee)).order_by(PayrollEntry.id.desc())
+    # зарплата хранится строкой «ГГГГ-ММ», поэтому сравниваем периоды, а не даты
+    limit_from = await visible_from(db, current)
+    if limit_from:
+        stmt = stmt.where(PayrollEntry.period >= f"{limit_from.year}-{limit_from.month:02d}")
     if period:
         stmt = stmt.where(PayrollEntry.period == period)
     res = await db.execute(stmt)

@@ -1,5 +1,7 @@
 import { createContext, ReactNode, useContext, useMemo, useState } from "react";
 import api, { apiError } from "../api/client";
+import { useAuth } from "../store/auth";
+import { useLock } from "./lock";
 
 export const MONTHS = [
   "январь", "февраль", "март", "апрель", "май", "июнь",
@@ -63,8 +65,18 @@ export function withPeriod(url: string, qs: string, extra?: string): string {
 
 export function PeriodPicker() {
   const { period, setPeriod } = usePeriod();
+  const { lastClosed } = useLock();
+  const { can } = useAuth();
   const now = new Date().getFullYear();
   const years = Array.from({ length: 7 }, (_, i) => now - 4 + i);
+
+  // Закрытый месяц помечаем замком, чтобы было видно, на какие данные смотришь.
+  // Без права «Видеть закрытые» такой месяц вообще недоступен: сервер всё равно
+  // отдаст пусто, и лучше сказать это сразу, чем показать пустую таблицу.
+  const canSeeClosed = can("closing:history");
+  const closedMonth = (m: number) =>
+    !!lastClosed && !!period.year && `${period.year}-${String(m).padStart(2, "0")}` <= lastClosed;
+
   return (
     <div className="flex items-center gap-2">
       <select
@@ -75,11 +87,15 @@ export function PeriodPicker() {
         }
       >
         <option value="">весь год</option>
-        {MONTHS.map((m, i) => (
-          <option key={m} value={i + 1}>
-            {m}
-          </option>
-        ))}
+        {MONTHS.map((m, i) => {
+          const closed = closedMonth(i + 1);
+          return (
+            <option key={m} value={i + 1} disabled={closed && !canSeeClosed}>
+              {m}
+              {closed ? (canSeeClosed ? " 🔒" : " · закрыт") : ""}
+            </option>
+          );
+        })}
       </select>
       <select
         className="input !py-1.5 !w-auto"

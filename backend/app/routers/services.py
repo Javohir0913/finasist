@@ -8,7 +8,7 @@ from ..database import get_db
 from ..events import record
 from ..ledger import recompute_org_balances
 from ..models import Service, User
-from ..periods import assert_open
+from ..periods import assert_open, visible_from
 from ..production import recompute_production
 from ..rates import get_rates
 from ..schemas import ServiceBase, ServiceOut
@@ -36,10 +36,13 @@ async def list_services(
     direction: str | None = None,
     year: int | None = None,
     month: int | None = None,
-    _: User = Depends(require("services:view")),
+    current: User = Depends(require("services:view")),
     db: AsyncSession = Depends(get_db),
 ):
     stmt = select(Service).options(selectinload(Service.organization)).order_by(Service.doc_date.desc(), Service.id.desc())
+    limit_from = await visible_from(db, current)
+    if limit_from:
+        stmt = stmt.where(Service.doc_date >= limit_from)
     if direction:
         stmt = stmt.where(Service.direction == direction)
     if year:
