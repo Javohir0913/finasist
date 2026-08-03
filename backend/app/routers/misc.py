@@ -9,6 +9,7 @@ from ..database import get_db
 from ..events import record
 from ..ledger import OPENING_DATE_REQUIRED
 from ..models import AuditLog, ExchangeRate, Loan, LoanEntry, Tax, User
+from ..periods import assert_open
 from ..rates import TAX_DATE_REQUIRED, is_auto_tax
 from ..schemas import (
     AuditOut,
@@ -62,6 +63,9 @@ async def create_rate(
             detail="Курс доллара указан неверно: ожидается цена 1 USD в сумах "
                    "(порядка 12 000), а не коэффициент.",
         )
+    # курс задаёт переоценку валютных сальдо: правка курса за закрытый месяц
+    # переписала бы его отчёты не хуже нового документа
+    await assert_open(db, body.rate_date, what="курс")
     existing = await db.execute(
         select(ExchangeRate).where(ExchangeRate.rate_date == body.rate_date)
     )
@@ -104,6 +108,7 @@ async def create_tax(
 ):
     t = Tax(**body.model_dump())
     _check_tax_date(t)
+    await assert_open(db, t.accrued_date, what="налог")
     t.debt_end = round(float(t.debt_start or 0) + float(t.accrued or 0) - float(t.paid or 0), 2)
     db.add(t)
     await db.commit()
@@ -122,9 +127,11 @@ async def update_tax(
     t = await db.get(Tax, tid)
     if not t:
         raise HTTPException(status_code=404, detail="Налог не найден")
+    old_date = t.accrued_date
     for k, v in body.model_dump(exclude_unset=True).items():
         setattr(t, k, v)
     _check_tax_date(t)
+    await assert_open(db, old_date, t.accrued_date, what="налог")
     t.debt_end = round(float(t.debt_start or 0) + float(t.accrued or 0) - float(t.paid or 0), 2)
     await db.commit()
     await db.refresh(t)
@@ -139,6 +146,7 @@ async def delete_tax(
     t = await db.get(Tax, tid)
     if not t:
         raise HTTPException(status_code=404, detail="Налог не найден")
+    await assert_open(db, t.accrued_date, what="налог")
     name = t.name
     await db.delete(t)
     await db.commit()
@@ -180,6 +188,7 @@ async def create_loan(
 ):
     ln = Loan(**body.model_dump())
     _check_loan_opening(ln)
+    await assert_open(db, ln.opening_date, what="входящее сальдо займа")
     db.add(ln)
     await db.flush()
     await _recompute_loan(db, ln.id)
@@ -199,9 +208,11 @@ async def update_loan(
     ln = await db.get(Loan, lid)
     if not ln:
         raise HTTPException(status_code=404, detail="Займ не найден")
+    old_opening = ln.opening_date
     for k, v in body.model_dump(exclude_unset=True).items():
         setattr(ln, k, v)
     _check_loan_opening(ln)
+    await assert_open(db, old_opening, ln.opening_date, what="входящее сальдо займа")
     await db.flush()
     await _recompute_loan(db, lid)
     await db.commit()
@@ -249,6 +260,7 @@ async def create_loan_entry(
         raise HTTPException(400, detail="kind: debit (выдача) | credit (погашение)")
     if not await db.get(Loan, body.loan_id):
         raise HTTPException(404, detail="Займ не найден")
+    await assert_open(db, body.doc_date, what="движение по займу")
     row = LoanEntry(**body.model_dump())
     db.add(row)
     await db.flush()
@@ -270,6 +282,7 @@ async def update_loan_entry(
     if not row:
         raise HTTPException(404, detail="Движение не найдено")
     old_loan = row.loan_id
+    await assert_open(db, row.doc_date, body.doc_date, what="движение по займу")
     for k, v in body.model_dump().items():
         setattr(row, k, v)
     await db.flush()
@@ -290,6 +303,7 @@ async def delete_loan_entry(
     if not row:
         raise HTTPException(404, detail="Движение не найдено")
     lid = row.loan_id
+    await assert_open(db, row.doc_date, what="движение по займу")
     await db.delete(row)
     await db.flush()
     await _recompute_loan(db, lid)

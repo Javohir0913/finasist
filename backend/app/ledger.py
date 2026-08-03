@@ -556,6 +556,71 @@ async def ledger_rows(
     }
 
 
+async def cash_position(db: AsyncSession, on: date | None = None) -> dict:
+    """Деньги НА ДАТУ: входящие остатки счетов/касс + движения ПО эту дату.
+
+    Отличие от `cash_opening`: та даёт остаток НА НАЧАЛО дня (движения строго
+    до даты) и нужна для колонки «на начало периода», а здесь — остаток на
+    конец дня, как его показывает баланс.
+
+    Остатки, зафиксированные позже `on`, не учитываются: на ту дату их ещё
+    не существовало.
+    """
+    from .models import BankAccount, CashRegister  # локально, чтобы избежать циклов
+
+    banks = [b for b in (await db.execute(select(BankAccount))).scalars().all()
+             if opening_active(b.opening_date, on)]
+    tills = [c for c in (await db.execute(select(CashRegister))).scalars().all()
+             if opening_active(c.opening_date, on)]
+    bank_uzs = sum(float(b.opening_uzs or 0) for b in banks)
+    kassa_uzs = sum(float(c.opening_uzs or 0) for c in tills)
+
+    stmt = select(
+        Transaction.account,
+        Transaction.direction,
+        func.coalesce(func.sum(Transaction.amount_uzs), 0),
+    )
+    if on:
+        stmt = stmt.where(Transaction.doc_date <= on)
+    for account, direction, uzs in (
+        await db.execute(stmt.group_by(Transaction.account, Transaction.direction))
+    ).all():
+        sign = 1 if direction == "income" else -1
+        if account == "bank":
+            bank_uzs += sign * float(uzs or 0)
+        else:
+            kassa_uzs += sign * float(uzs or 0)
+
+    return {"bank_uzs": round(bank_uzs, 2), "kassa_uzs": round(kassa_uzs, 2)}
+
+
+async def loan_balances_at(db: AsyncSession, on: date | None = None) -> dict:
+    """Сальдо займов на дату: входящее + выдача − погашение по эту дату.
+
+    Раньше баланс брал `Loan.balance` — сальдо «на сейчас», из-за чего займ,
+    погашенный в марте, исчезал и из январского баланса.
+    """
+    from .models import Loan, LoanEntry  # локально, чтобы избежать циклов
+
+    stmt = select(LoanEntry.loan_id, LoanEntry.kind,
+                  func.coalesce(func.sum(LoanEntry.amount_uzs), 0))
+    if on:
+        stmt = stmt.where(LoanEntry.doc_date <= on)
+    moved: dict[int, float] = {}
+    for lid, kind, amount in (await db.execute(stmt.group_by(LoanEntry.loan_id, LoanEntry.kind))).all():
+        moved[lid] = moved.get(lid, 0.0) + (1 if kind == "debit" else -1) * float(amount or 0)
+
+    given = taken = 0.0
+    for ln in (await db.execute(select(Loan))).scalars().all():
+        opening = float(ln.opening_uzs or 0) if opening_active(ln.opening_date, on) else 0.0
+        balance = opening + moved.get(ln.id, 0.0)
+        if ln.direction == "given":
+            given += balance
+        else:
+            taken += balance
+    return {"given": round(given, 2), "taken": round(taken, 2)}
+
+
 async def cash_opening(
     db: AsyncSession, before: date | None = None, division: str | None = None
 ) -> dict:

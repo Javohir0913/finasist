@@ -14,6 +14,7 @@ from ..models import (
     Transaction,
     User,
 )
+from ..periods import assert_open
 from ..schemas import OrgCreate, OrgOut, OrgUpdate
 from ..security import require
 
@@ -89,6 +90,7 @@ async def create_org(
     data.pop("opening_usd", None)          # считается из курса, извне не берём
     org = Organization(**data)
     _apply_opening(org, uzs, rate, when)
+    await assert_open(db, org.opening_date, what="входящее сальдо контрагента")
     db.add(org)
     await db.flush()
     # сальдо = входящее + обороты по документам, а не то, что прислал клиент
@@ -117,7 +119,10 @@ async def update_org(
     for k, v in data.items():
         setattr(org, k, v)
     if uzs is not None or rate is not None or when is not None:
+        old_opening = org.opening_date
         _apply_opening(org, uzs, rate, when)
+        await assert_open(db, old_opening, org.opening_date,
+                          what="входящее сальдо контрагента")
     await db.flush()
     await recompute_org_balances(db, [org.id])
     await db.commit()

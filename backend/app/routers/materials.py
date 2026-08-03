@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..database import get_db
 from ..events import record
 from ..models import Material, MaterialIssue, MaterialReceipt, MaterialStock, User
+from ..periods import assert_no_closed
 from ..schemas import MaterialCreate, MaterialOut, MaterialUpdate
 from ..security import require
 from .inventory import recompute_material
@@ -32,6 +33,8 @@ async def create_material(
     db: AsyncSession = Depends(get_db),
 ):
     m = Material(**body.model_dump())
+    if float(m.opening_qty or 0) or float(m.opening_cost or 0):
+        await assert_no_closed(db, what="входящий остаток сырья")
     db.add(m)
     await db.flush()
     await recompute_material(db, m.id)
@@ -51,7 +54,12 @@ async def update_material(
     m = await db.get(Material, mid)
     if not m:
         raise HTTPException(status_code=404, detail="Материал не найден")
-    for k, v in body.model_dump(exclude_unset=True).items():
+    data = body.model_dump(exclude_unset=True)
+    # входящий остаток даты не имеет и переписывает всю историю — см. assert_no_closed
+    if any(float(data[k] or 0) != float(getattr(m, k) or 0)
+           for k in ("opening_qty", "opening_cost") if k in data):
+        await assert_no_closed(db, what="входящий остаток сырья")
+    for k, v in data.items():
         setattr(m, k, v)
     await db.flush()
     # входящий остаток мог измениться -> полный пересчёт склада и средней цены

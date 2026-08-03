@@ -25,6 +25,7 @@ from ..models import (
     Transaction,
     User,
 )
+from ..periods import assert_open
 from ..schemas import (
     BankAccountBase,
     BankAccountOut,
@@ -341,6 +342,7 @@ async def create_bank_account(
 ):
     row = BankAccount(**body.model_dump())
     _check_opening_date(row)
+    await assert_open(db, row.opening_date, what="входящий остаток счёта")
     db.add(row)
     await db.commit()
     await db.refresh(row)
@@ -358,9 +360,11 @@ async def update_bank_account(
     row = await db.get(BankAccount, bid)
     if not row:
         raise HTTPException(404, detail="Счёт не найден")
+    old_opening = row.opening_date
     for k, v in body.model_dump(exclude_unset=True).items():
         setattr(row, k, v)
     _check_opening_date(row)
+    await assert_open(db, old_opening, row.opening_date, what="входящий остаток счёта")
     await db.commit()
     await db.refresh(row)
     await record(db, current, "edit", "bank_account", row.name)
@@ -404,6 +408,7 @@ async def create_cash_register(
 ):
     row = CashRegister(**body.model_dump())
     _check_opening_date(row)
+    await assert_open(db, row.opening_date, what="входящий остаток кассы")
     db.add(row)
     await db.commit()
     await db.refresh(row)
@@ -421,9 +426,11 @@ async def update_cash_register(
     row = await db.get(CashRegister, cid)
     if not row:
         raise HTTPException(404, detail="Касса не найдена")
+    old_opening = row.opening_date
     for k, v in body.model_dump(exclude_unset=True).items():
         setattr(row, k, v)
     _check_opening_date(row)
+    await assert_open(db, old_opening, row.opening_date, what="входящий остаток кассы")
     await db.commit()
     await db.refresh(row)
     await record(db, current, "edit", "cash_register", row.name)

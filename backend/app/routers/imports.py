@@ -29,6 +29,7 @@ from ..models import (
     Transaction,
     User,
 )
+from ..periods import closed_periods, period_of
 from ..rates import get_rates
 from ..security import require
 from .inventory import recompute_material, recompute_product
@@ -208,6 +209,9 @@ async def import_file(
     touched_orgs: set[int] = set()
     touched_mats: set[int] = set()
     touched_prods: set[int] = set()
+    # закрытые месяцы отсекаем построчно, а не целым файлом: пользователю нужно
+    # видеть, какие именно строки не пройдут, ещё на проверке (dry_run)
+    closed = await closed_periods(db)
 
     for row in rows:
         n = row["_row"]
@@ -218,6 +222,9 @@ async def import_file(
                 obj = _receipt_row(row, res)
             elif kind == "sales":
                 obj = _sale_row(row, res)
+            when = getattr(obj["model"], "doc_date", None)
+            if period_of(when) in closed:
+                raise ValueError(f"Месяц {period_of(when)} закрыт — строка не может быть загружена")
             created.append({"row": n, "summary": obj["summary"]})
             if not dry_run:
                 db.add(obj["model"])

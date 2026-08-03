@@ -11,6 +11,7 @@ from ..database import get_db
 from ..events import record
 from ..ledger import recompute_org_balances, salary_org_by_division
 from ..models import Employee, PayrollEntry, User
+from ..periods import assert_period_open
 from ..production import recompute_production
 from ..rates import get_rates
 from ..schemas import (
@@ -220,6 +221,7 @@ async def create_payroll(body: PayrollBase, current: User = Depends(require("pay
     )
     if dup:
         raise HTTPException(400, detail="Расчёт за этот период по сотруднику уже есть")
+    await assert_period_open(db, body.period, what="расчёт зарплаты")
     e = PayrollEntry(**body.model_dump())
     if not e.oklad:
         e.oklad = float(emp.salary or 0)
@@ -243,8 +245,12 @@ async def update_payroll(pid: int, body: PayrollUpdate, current: User = Depends(
     e = await db.get(PayrollEntry, pid)
     if not e:
         raise HTTPException(404, detail="Расчёт не найден")
+    old_period = e.period
     for k, v in body.model_dump(exclude_unset=True).items():
         setattr(e, k, v)
+    # старый период тоже: иначе расчёт можно было бы «перенести» из закрытого месяца
+    await assert_period_open(db, old_period, what="расчёт зарплаты")
+    await assert_period_open(db, e.period, what="расчёт зарплаты")
     _validate(e)
     emp = await db.get(Employee, e.employee_id)
     r = await get_rates(db)
@@ -265,6 +271,7 @@ async def delete_payroll(pid: int, current: User = Depends(require("payroll:dele
         raise HTTPException(404, detail="Расчёт не найден")
     emp = await db.get(Employee, e.employee_id)
     division, period = (emp.division if emp else None), e.period
+    await assert_period_open(db, period, what="расчёт зарплаты")
     await db.delete(e)
     await db.flush()
     await _sync_salary_ledger(db, division)

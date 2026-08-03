@@ -547,6 +547,47 @@ class PayrollEntry(Base):
     employee: Mapped["Employee"] = relationship()
 
 
+class PeriodClose(Base):
+    """Закрытый месяц: после закрытия документы этого периода не меняются.
+
+    Проверку делает `app/periods.py::assert_open`, подключённая ко всем
+    эндпоинтам, которые пишут первичку. Пока таблица пуста, проверка ничего
+    не запрещает — система работает как раньше.
+
+    `snapshot` — свободный слепок показателей на момент закрытия (баланс, ОФР,
+    курс, остатки). Нужен, чтобы закрытый месяц можно было показать ровно
+    таким, каким его закрыли, и сверить с пересчётом.
+    """
+
+    __tablename__ = "period_closes"
+
+    period: Mapped[str] = mapped_column(String(7), primary_key=True)  # YYYY-MM
+    closed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    closed_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    closed_by_name: Mapped[str] = mapped_column(String(160), default="")
+    note: Mapped[str] = mapped_column(String(255), default="")
+    snapshot: Mapped[dict] = mapped_column(JSONB, default=dict)
+
+
+class PeriodSetting(Base):
+    """Значение настройки, действующее в КОНКРЕТНОМ месяце.
+
+    ОС, износ, капитал меняются каждый месяц, а `Setting` хранит одно текущее
+    значение — из-за этого баланс за прошлый месяц пересчитывался по сегодняшним
+    цифрам. Здесь то же значение привязано к периоду; если на месяц значения нет,
+    берётся ближайшее более раннее, а затем — текущее из `Setting`.
+    """
+
+    __tablename__ = "period_settings"
+    __table_args__ = (UniqueConstraint("period", "key", name="uq_period_setting"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    period: Mapped[str] = mapped_column(String(7), index=True)  # YYYY-MM
+    key: Mapped[str] = mapped_column(String(50), index=True)
+    value: Mapped[str] = mapped_column(String(80), default="0")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class AuditLog(Base):
     __tablename__ = "audit_logs"
 

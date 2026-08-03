@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..database import get_db
 from ..events import record
 from ..models import Product, ProductStock, Production, Sale, User
+from ..periods import assert_no_closed
 from ..schemas import ProductCreate, ProductOut, ProductUpdate
 from ..security import require
 from .inventory import recompute_product
@@ -27,6 +28,8 @@ async def create_product(
     db: AsyncSession = Depends(get_db),
 ):
     p = Product(**body.model_dump())
+    if float(p.opening_qty or 0) or float(p.opening_cost or 0):
+        await assert_no_closed(db, what="входящий остаток продукции")
     db.add(p)
     await db.flush()
     await recompute_product(db, p.id)
@@ -46,7 +49,12 @@ async def update_product(
     p = await db.get(Product, pid)
     if not p:
         raise HTTPException(status_code=404, detail="Продукция не найдена")
-    for k, v in body.model_dump(exclude_unset=True).items():
+    data = body.model_dump(exclude_unset=True)
+    # входящий остаток даты не имеет и переписывает всю историю — см. assert_no_closed
+    if any(float(data[k] or 0) != float(getattr(p, k) or 0)
+           for k in ("opening_qty", "opening_cost") if k in data):
+        await assert_no_closed(db, what="входящий остаток продукции")
+    for k, v in data.items():
         setattr(p, k, v)
     await db.flush()
     # входящий остаток мог измениться -> полный пересчёт склада и себестоимости

@@ -22,6 +22,7 @@ MODULES = [
     ("loans", "Займы"),
     ("exchange", "Курс доллара"),
     ("reports", "Отчёты (ОФР / Баланс)"),
+    ("closing", "Закрытие месяца"),
     ("users", "Пользователи"),
     ("roles", "Роли и доступы"),
     ("settings", "Настройки (ставки налогов)"),
@@ -33,6 +34,8 @@ ACTIONS = ["view", "create", "edit", "delete", "export"]
 MODULE_ACTIONS = {
     "dashboard": ["view"],
     "reports": ["view", "export"],
+    # create = закрыть месяц, delete = открыть обратно
+    "closing": ["view", "create", "delete"],
     "exchange": ["view", "create", "edit", "delete"],
     "users": ["view", "create", "edit", "delete"],
     "roles": ["view", "create", "edit", "delete"],

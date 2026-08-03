@@ -9,6 +9,7 @@ from ..database import get_db
 from ..events import record
 from ..ledger import recompute_org_balances
 from ..models import ExchangeRate, Transaction, User
+from ..periods import assert_open
 from ..production import recompute_production
 from ..schemas import TxCreate, TxOut, TxUpdate
 from ..security import get_current_user, require
@@ -108,6 +109,7 @@ async def create_tx(
     if body.direction not in ("income", "expense"):
         raise HTTPException(status_code=400, detail="direction: income | expense")
     _require_cashflow_code(body.cashflow_code)
+    await assert_open(db, body.doc_date, what="операцию")
     rate = await _resolve_rate(db, body.currency, body.doc_date)
     tx = Transaction(**body.model_dump())
     tx.rate = rate
@@ -144,6 +146,8 @@ async def update_tx(
     old_org, old_div, old_date = tx.organization_id, tx.division, tx.doc_date
     for k, v in body.model_dump(exclude_unset=True).items():
         setattr(tx, k, v)
+    # старая дата тоже: иначе операцию можно было бы «вынести» из закрытого месяца
+    await assert_open(db, old_date, tx.doc_date, what="операцию")
     _require_cashflow_code(tx.cashflow_code)
     tx.rate = await _resolve_rate(db, tx.currency, tx.doc_date)
     tx.amount_usd = _usd(tx.currency, float(tx.amount), float(tx.rate))
@@ -168,6 +172,7 @@ async def delete_tx(
     if not tx:
         raise HTTPException(status_code=404, detail="Операция не найдена")
     org_id, div, when = tx.organization_id, tx.division, tx.doc_date
+    await assert_open(db, when, what="операцию")
     await db.delete(tx)
     await db.flush()
     await _sync_orgs(db, org_id)

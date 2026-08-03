@@ -11,12 +11,16 @@ from ..database import get_db
 from ..ledger import (
     _rate_map,
     cash_opening,
+    cash_position,
     fx_of,
     ledger_rows,
+    loan_balances_at,
     opening_active,
     org_fx_documents,
     rate_on,
 )
+from ..periods import setting_value
+from ..stock import stock_value_at
 from ..rates import get_rates
 from ..models import (
     BankAccount,
@@ -39,7 +43,6 @@ from ..models import (
     Production,
     Sale,
     Service,
-    Setting,
     Tax,
     Transaction,
     User,
@@ -1024,29 +1027,18 @@ async def loans_report(
 
 # ================= Баланс (Форма №1) =================
 async def _balance_at(db: AsyncSession, on: date | None, year=None, month=None) -> dict:
-    """Показатели баланса на дату (None = на текущий момент)."""
+    """Показатели баланса на дату (None = на текущий момент).
 
-    async def cash_of(account: str) -> float:
-        stmt = select(
-            Transaction.direction, func.coalesce(func.sum(Transaction.amount_uzs), 0)
-        ).where(Transaction.account == account).group_by(Transaction.direction)
-        if on:
-            stmt = stmt.where(Transaction.doc_date <= on)
-        total = 0.0
-        for direction, v in (await db.execute(stmt)).all():
-            total += (1 if direction == "income" else -1) * float(v or 0)
-        return total
+    ВСЁ здесь считается именно НА ДАТУ. Раньше часть показателей бралась «как
+    сейчас» (склад, займы, ОС/капитал), и колонка «на начало периода» показывала
+    сегодняшние остатки, а закрытый месяц менялся от каждого нового документа.
+    """
+    money = await cash_position(db, on)
+    kassa, bank = money["kassa_uzs"], money["bank_uzs"]
 
-    opening = await cash_opening(db, None)
-    kassa = opening["kassa_uzs"] + await cash_of("kassa")
-    bank = opening["bank_uzs"] + await cash_of("bank")
-
-    # --- запасы (склад ведётся нарастающим итогом, поэтому на конец периода) ---
-    mats = (await db.execute(select(Material))).scalars().all()
-    raw_val = sum(float(m.stock_qty or 0) * float(m.avg_cost or 0) for m in mats if m.kind == "raw")
-    spare_val = sum(float(m.stock_qty or 0) * float(m.avg_cost or 0) for m in mats if m.kind != "raw")
-    prods = (await db.execute(select(Product))).scalars().all()
-    gp_val = sum(float(p.stock_qty or 0) * float(p.avg_cost or 0) for p in prods)
+    # --- запасы: реплей движений по дату (см. app/stock.py) ---
+    stock = await stock_value_at(db, on)
+    raw_val, spare_val, gp_val = stock["raw"], stock["spare"], stock["gp"]
 
     # --- расчёты с контрагентами по видам ведомостей ---
     led = await ledger_rows(db, None, None, on)
@@ -1066,17 +1058,14 @@ async def _balance_at(db: AsyncSession, on: date | None, year=None, month=None) 
     tax_data = await _taxes_core(db, year, month)
     tax_debt = float(tax_data["totals"]["end"])
     tax_overpay = float(sum(r["overpay"] for r in tax_data["rows"]))
-    loans = (await db.execute(select(Loan))).scalars().all()
-    loan_taken = sum(float(l.balance or 0) for l in loans if l.direction == "received")
-    loan_given = sum(float(l.balance or 0) for l in loans if l.direction == "given")
+    loans = await loan_balances_at(db, on)
+    loan_taken, loan_given = loans["taken"], loans["given"]
 
-    # --- собственный капитал и долгосрочные активы (из «Настроек») ---
+    # --- собственный капитал и долгосрочные активы ---
+    # значение берётся то, что действовало НА ЭТУ ДАТУ (см. app/periods.py):
+    # износ обновляют каждый месяц, и без этого прошлый баланс «уезжал».
     async def setting(key: str) -> float:
-        v = await db.scalar(select(Setting.value).where(Setting.key == key))
-        try:
-            return float(v or 0)
-        except (TypeError, ValueError):
-            return 0.0
+        return await setting_value(db, key, on)
 
     fa = await setting("fa_cost")
     fa_dep = await setting("fa_depreciation")

@@ -21,8 +21,10 @@ from ..models import (
     Sale,
     User,
 )
+from ..periods import assert_no_closed, assert_open
 from ..production import recompute_production
 from ..rates import get_rates
+from ..stock import apply_receipt
 from ..schemas import (
     IssueBase,
     IssueOut,
@@ -82,6 +84,7 @@ async def set_material_opening(
     division = (body.get("division") or "").strip()
     if not await db.get(Material, mid):
         raise HTTPException(404, detail="Материал не найден")
+    await assert_no_closed(db, what="входящий остаток сырья")
     row = await db.scalar(
         select(MaterialStock).where(
             MaterialStock.material_id == mid, MaterialStock.division == division
@@ -138,6 +141,7 @@ async def set_product_opening(
     division = (body.get("division") or "").strip()
     if not await db.get(Product, pid):
         raise HTTPException(404, detail="Продукция не найдена")
+    await assert_no_closed(db, what="входящий остаток продукции")
     row = await db.scalar(
         select(ProductStock).where(
             ProductStock.product_id == pid, ProductStock.division == division
@@ -270,9 +274,7 @@ async def recompute_material(db: AsyncSession, material_id: int):
             obj.amount_uzs = round(q * p, 2)          # без НДС
             obj.vat_amount = round(obj.amount_uzs * nds, 2) if obj.vat else 0.0
             obj.amount_gross = round(obj.amount_uzs + float(obj.vat_amount), 2)
-            new = stock + q
-            avg = round((stock * avg + q * p) / new, 4) if new else 0.0
-            stock = new
+            stock, avg = apply_receipt(stock, avg, q, p)
         else:
             obj.cost_uzs = round(q * avg, 2)
             stock -= q
@@ -333,9 +335,7 @@ async def recompute_product(db: AsyncSession, product_id: int):
         if kind == "in":
             c = float(obj.unit_cost)
             obj.amount_uzs = round(q * c, 2)
-            new = stock + q
-            avg = round((stock * avg + q * c) / new, 4) if new else 0.0
-            stock = new
+            stock, avg = apply_receipt(stock, avg, q, c)
         else:
             amount = q * float(obj.price_uzs)
             net = amount / (1 + nds) if obj.vat else amount
@@ -375,6 +375,7 @@ async def list_receipts(_: User = Depends(require("materials:view")), db: AsyncS
 
 @router.post("/material-receipts", response_model=ReceiptOut, status_code=201)
 async def create_receipt(body: ReceiptBase, current: User = Depends(require("materials:create")), db: AsyncSession = Depends(get_db)):
+    await assert_open(db, body.doc_date, what="приход ТМЦ")
     row = MaterialReceipt(**body.model_dump(), created_by=current.id)
     db.add(row)
     await db.flush()
@@ -394,6 +395,7 @@ async def update_receipt(rid: int, body: ReceiptBase, current: User = Depends(re
         raise HTTPException(404, detail="Не найдено")
     old_mat, old_org = row.material_id, row.organization_id
     old_div, old_date = row.division, row.doc_date
+    await assert_open(db, old_date, body.doc_date, what="приход ТМЦ")
     for k, v in body.model_dump().items():
         setattr(row, k, v)
     await db.flush()
@@ -416,6 +418,7 @@ async def delete_receipt(rid: int, current: User = Depends(require("materials:de
         raise HTTPException(404, detail="Не найдено")
     mid, org_id = row.material_id, row.organization_id
     div, when = row.division, row.doc_date
+    await assert_open(db, when, what="приход ТМЦ")
     await db.delete(row)
     await db.flush()
     await recompute_material(db, mid)
@@ -439,6 +442,7 @@ async def create_issue(body: IssueBase, current: User = Depends(require("materia
     mat = await db.get(Material, body.material_id)
     if not mat:
         raise HTTPException(404, detail="Материал не найден")
+    await assert_open(db, body.doc_date, what="расход ТМЦ")
     await _check_material_stock(db, mat, body.division, body.qty)
     row = MaterialIssue(**body.model_dump(), created_by=current.id)
     db.add(row)
@@ -460,6 +464,7 @@ async def update_issue(rid: int, body: IssueBase, current: User = Depends(requir
     mat = await db.get(Material, body.material_id)
     if not mat:
         raise HTTPException(404, detail="Материал не найден")
+    await assert_open(db, old_date, body.doc_date, what="расход ТМЦ")
     await _check_material_stock(db, mat, body.division, body.qty, exclude_id=rid)
     for k, v in body.model_dump().items():
         setattr(row, k, v)
@@ -481,6 +486,7 @@ async def delete_issue(rid: int, current: User = Depends(require("materials:dele
     if not row:
         raise HTTPException(404, detail="Не найдено")
     mid, div, when = row.material_id, row.division, row.doc_date
+    await assert_open(db, when, what="расход ТМЦ")
     await db.delete(row)
     await db.flush()
     await recompute_material(db, mid)
@@ -502,6 +508,7 @@ async def list_prod(_: User = Depends(require("production:view")), db: AsyncSess
 async def create_prod(body: ProductionBase, current: User = Depends(require("production:create")), db: AsyncSession = Depends(get_db)):
     # себестоимость не принимаем: она делится на весь выпуск месяца и потому
     # пересчитывается после каждого документа — см. app/production.py
+    await assert_open(db, body.doc_date, what="выпуск продукции")
     data = body.model_dump()
     data.pop("unit_cost", None)
     row = Production(**data, created_by=current.id)
@@ -521,6 +528,7 @@ async def update_prod(rid: int, body: ProductionBase, current: User = Depends(re
     if not row:
         raise HTTPException(404, detail="Не найдено")
     old_p, old_div, old_date = row.product_id, row.division, row.doc_date
+    await assert_open(db, old_date, body.doc_date, what="выпуск продукции")
     data = body.model_dump()
     data.pop("unit_cost", None)
     for k, v in data.items():
@@ -543,6 +551,7 @@ async def delete_prod(rid: int, current: User = Depends(require("production:dele
     if not row:
         raise HTTPException(404, detail="Не найдено")
     pid, div, when = row.product_id, row.division, row.doc_date
+    await assert_open(db, when, what="выпуск продукции")
     await db.delete(row)
     await db.flush()
     await recompute_production(db, div, when)
@@ -566,6 +575,7 @@ async def create_sale(body: SaleBase, current: User = Depends(require("sales:cre
     prod = await db.get(Product, body.product_id)
     if not prod:
         raise HTTPException(404, detail="Продукция не найдена")
+    await assert_open(db, body.doc_date, what="продажу")
     await _check_stock(db, prod, body.division, body.qty)
     row = Sale(**body.model_dump(), created_by=current.id)
     db.add(row)
@@ -586,6 +596,7 @@ async def update_sale(rid: int, body: SaleBase, current: User = Depends(require(
         raise HTTPException(404, detail="Не найдено")
     old_p = row.product_id
     old_org = row.organization_id
+    await assert_open(db, row.doc_date, body.doc_date, what="продажу")
     for k, v in body.model_dump().items():
         setattr(row, k, v)
     await db.flush()
@@ -605,6 +616,7 @@ async def delete_sale(rid: int, current: User = Depends(require("sales:delete"))
     if not row:
         raise HTTPException(404, detail="Не найдено")
     pid, org_id = row.product_id, row.organization_id
+    await assert_open(db, row.doc_date, what="продажу")
     await db.delete(row)
     await db.flush()
     await recompute_product(db, pid)

@@ -8,6 +8,7 @@ from ..database import get_db
 from ..events import record
 from ..ledger import recompute_org_balances
 from ..models import Service, User
+from ..periods import assert_open
 from ..production import recompute_production
 from ..rates import get_rates
 from ..schemas import ServiceBase, ServiceOut
@@ -51,6 +52,7 @@ async def create_service(
 ):
     if body.direction not in ("received", "provided"):
         raise HTTPException(400, detail="direction: received | provided")
+    await assert_open(db, body.doc_date, what="услугу")
     s = Service(**body.model_dump(), created_by=current.id)
     await _apply(db, s)
     db.add(s)
@@ -76,6 +78,7 @@ async def update_service(
     if body.direction not in ("received", "provided"):
         raise HTTPException(400, detail="direction: received | provided")
     old_org, old_div, old_date = s.organization_id, s.division, s.doc_date
+    await assert_open(db, old_date, body.doc_date, what="услугу")
     for k, v in body.model_dump().items():
         setattr(s, k, v)
     await _apply(db, s)
@@ -97,6 +100,7 @@ async def delete_service(
     if not s:
         raise HTTPException(404, detail="Услуга не найдена")
     org_id, div, when = s.organization_id, s.division, s.doc_date
+    await assert_open(db, when, what="услугу")
     await db.delete(s)
     await db.flush()
     await _sync_orgs(db, org_id)
