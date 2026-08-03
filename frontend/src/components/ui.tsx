@@ -180,8 +180,10 @@ export function Card({ className, children }: { className?: string; children: Re
 
 export function SectionTitle({ title, sub, right }: { title: string; sub?: string; right?: ReactNode }) {
   return (
-    <div className="flex items-end justify-between gap-4 mb-5">
-      <div>
+    /* flex-wrap обязателен: справа живут выбор периода и кнопки — на телефоне
+       без переноса они сжимают заголовок и вылезают за край экрана */
+    <div className="flex flex-wrap items-end justify-between gap-3 mb-5">
+      <div className="min-w-0">
         <h1 className="text-xl font-bold text-ink tracking-tight">{title}</h1>
         {sub && <p className="text-sm text-slate-400 mt-1">{sub}</p>}
       </div>

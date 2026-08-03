@@ -207,7 +207,7 @@ function BalanceSheet() {
   const Side = ({ title, rows }: { title: string; rows: any[] }) => (
     <Card className="!p-0 overflow-hidden">
       <div className="p-4 border-b border-line"><h3 className="font-semibold text-ink">{title}</h3></div>
-      <table className="w-full text-sm">
+      <div className="overflow-x-auto"><table className="w-full text-sm min-w-[520px]">
         <thead><tr className="bg-veil/[0.02]">
           <th className="th w-14">№ стр</th><th className="th">Наименование</th>
           <th className="th text-right">На начало</th><th className="th text-right">На конец</th>
@@ -222,7 +222,7 @@ function BalanceSheet() {
             </tr>
           ))}
         </tbody>
-      </table>
+      </table></div>
     </Card>
   );
   return (
@@ -696,7 +696,7 @@ function FxDiff() {
             деньги — ежедневно, займы — по курсу на дату каждого движения.
           </p>
         </div>
-        <table className="w-full">
+        <div className="overflow-x-auto"><table className="w-full min-w-[480px]">
           <thead><tr className="bg-veil/[0.02]"><th className="th">Наименование</th><th className="th text-right">Доходы</th><th className="th text-right">Убытки</th></tr></thead>
           <tbody>
             {data.rows.map((r: any, i: number) => (
@@ -718,7 +718,7 @@ function FxDiff() {
               </td>
             </tr>
           </tbody>
-        </table>
+        </table></div>
       </Card>
       <FxDocuments />
     </>
