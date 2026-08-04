@@ -115,10 +115,17 @@ body,
 
 /* Полосу прокрутки резервируем всегда: иначе при смене высоты страницы
    (загрузка данных, фильтр, открытие модалки) она то появляется, то исчезает,
-   и вся шапка вместе с контентом дёргается влево-вправо. */
+   и вся шапка вместе с контентом дёргается влево-вправо.
+
+   overflow-x — страховка. Широкие реестры прокручиваются ВНУТРИ своей карточки
+   (.overflow-x-auto), и странице ездить вбок незачем: там, где это случалось,
+   вместе с ней уезжала закреплённая шапка («ООО PROFIT DIVIDER…» уходила из
+   виду). Если что-то снова вылезет за край — оно будет обрезано, а не сдвинет
+   всю страницу. */
 html {
   scrollbar-gutter: stable;
   overflow-y: scroll;
+  overflow-x: hidden;
 }
 
 /* Панель модалки не выше экрана; dvh — чтобы на телефоне панель браузера
@@ -173,6 +180,12 @@ body {
   .label {
     @apply block text-xs font-medium text-slate-400 mb-1.5;
   }
+  /* Поле внутри ячейки таблицы пакетного ввода: те же цвета, но плотнее —
+     иначе десять полноразмерных полей в строку не помещаются. */
+  .input-cell {
+    @apply w-full rounded-lg bg-base-900/80 border border-line px-2 py-1.5 text-[13px] text-slate-100
+      placeholder:text-slate-600 outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20 transition;
+  }
   .chip {
     @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium;
   }
@@ -195,6 +208,116 @@ body {
   /* Затемнение под модалкой/мобильным меню — своё для каждой темы */
   .backdrop-veil {
     background: var(--overlay-bg);
+  }
+
+  /* ── Плотный реестр ────────────────────────────────────────────────
+     Приход/расход и продажа — это 12–14 колонок, из них 5–7 денежных.
+     С обычными отступами такая таблица не влезает даже в широкий экран.
+     Класс `reg` на <table> ужимает ячейки — этого хватает, чтобы реестр
+     помещался целиком, а не ездил вбок. */
+  /* separate вместо collapse: с collapse закреплённая колонка (ниже) теряет
+     свои границы, а в Safari липкость на ячейках вовсе не работает. */
+  .reg {
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+  /* при separate рамка на <tr> не рисуется — жирную черту над «Итого»
+     возвращаем самим ячейкам */
+  .reg tfoot .td {
+    border-top: 2px solid rgb(var(--c-line));
+  }
+  .reg .th {
+    @apply px-2.5 py-2.5 text-[10px];
+  }
+  .reg .td {
+    @apply px-2.5 py-2 text-[13px];
+  }
+  /* Первая колонка (дата) держится на месте при горизонтальной прокрутке:
+     на узком экране иначе непонятно, к какой строке относятся цифры.
+     Фон непрозрачный — под ней проезжают остальные ячейки. */
+  .reg .th:first-child,
+  .reg .td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background-color: rgb(var(--c-base-850));
+    box-shadow: 1px 0 0 rgb(var(--c-line));
+  }
+  /* Зебра шапки/итога и подсветка строки под курсором кладутся плёнкой
+     ПОВЕРХ непрозрачного фона — иначе закреплённая ячейка выпадала бы
+     из общего цвета строки. Доли те же, что у bg-veil/[…] в разметке. */
+  .reg thead .th:first-child,
+  .reg tbody tr:hover .td:first-child {
+    background-image: linear-gradient(rgb(var(--c-veil) / 0.02), rgb(var(--c-veil) / 0.02));
+  }
+  .reg tfoot .td:first-child {
+    background-image: linear-gradient(rgb(var(--c-veil) / 0.04), rgb(var(--c-veil) / 0.04));
+  }
+  /* На светлом фоне плёнка в 2–4 % не видна — как и для остальных ячеек
+     (см. блок utilities ниже), усиливаем. */
+  html:not(.dark) .reg thead .th:first-child,
+  html:not(.dark) .reg tbody tr:hover .td:first-child {
+    background-image: linear-gradient(rgb(var(--c-veil) / 0.045), rgb(var(--c-veil) / 0.045));
+  }
+  html:not(.dark) .reg tfoot .td:first-child {
+    background-image: linear-gradient(rgb(var(--c-veil) / 0.07), rgb(var(--c-veil) / 0.07));
+  }
+
+  /* ── Таблица пакетного ввода (модалка «создать несколько») ────────── */
+  .grid-table {
+    @apply w-full border-separate border-spacing-0;
+  }
+  .grid-table th {
+    @apply text-left text-[10px] uppercase tracking-wider text-slate-500 font-semibold
+      px-1.5 pb-2 whitespace-nowrap align-bottom;
+  }
+  .grid-table td {
+    @apply px-1.5 py-1 align-top;
+  }
+  /* Номер строки — узкий и не тянется */
+  .grid-table td.rownum,
+  .grid-table th.rownum {
+    @apply w-8 text-center text-xs text-slate-600 tabular-nums px-0;
+  }
+  .grid-table td.rownum {
+    @apply pt-3;
+  }
+  /* Строка с ошибкой подсвечивается мягко, без «красной тревоги» */
+  .grid-table tr.row-bad td {
+    background-color: rgb(var(--c-rose2) / 0.06);
+  }
+}
+
+/* ── Печать ────────────────────────────────────────────────────────────
+   Бланк живёт в #print-root — узле-брате #root. На экране он скрыт, при
+   печати наоборот: приложение прячется, остаётся только документ. Так печать
+   не требует ни скачивания файла, ни отдельной вкладки. */
+#print-root {
+  display: none;
+}
+
+@page {
+  size: A4 portrait;
+  margin: 12mm;
+}
+
+@media print {
+  html,
+  body {
+    background: #fff !important;
+    /* тёмная тема на бумаге — залитый чёрным лист */
+    color: #000 !important;
+  }
+  body > #root {
+    display: none !important;
+  }
+  #print-root {
+    display: block !important;
+  }
+  /* строку таблицы нельзя рвать между страницами */
+  #print-root tr,
+  #print-root table {
+    page-break-inside: avoid;
   }
 }
 

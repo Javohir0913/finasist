@@ -79,14 +79,19 @@ export function FilterBar<T>({ f, placeholder = "Поиск по реестру�
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2 mb-3">
-      <input className="input !py-1.5 w-56" value={f.q}
+      <input className="input !py-1.5 !w-56 max-w-full" value={f.q}
         onChange={(e) => f.setQ(e.target.value)} placeholder={placeholder} />
       {f.facets.map((fc) => {
         const opts = Array.from(new Set(f.all.map(fc.of)))
           .sort((a, b) => a.localeCompare(b, "ru"));
         if (opts.length < 2) return null;
         return (
-          <select key={fc.key} className="input !py-1.5 w-auto"
+          /* max-w обязателен: ширина <select> равна ЕГО САМОМУ ДЛИННОМУ пункту,
+             а в гранях «Поставщик» / «Материал» лежат полные названия. Без
+             ограничения такой список раздвигал колонку сетки, и горизонтально
+             ехала вся страница вместе с закреплённой шапкой. */
+          <select key={fc.key} className="input !py-1.5 !w-auto max-w-[11rem] truncate"
+            title={f.picked[fc.key] || fc.label}
             value={f.picked[fc.key] || ""} onChange={(e) => f.pick(fc.key, e.target.value)}>
             <option value="">{fc.label}: все</option>
             {opts.map((v) => <option key={v} value={v}>{v || "— не указано —"}</option>)}

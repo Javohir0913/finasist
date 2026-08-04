@@ -256,7 +256,69 @@ async def seed(db: AsyncSession) -> None:
     await _rename_divisions(db)
     await _sync_directories(db, ref)
     await _backfill_receipt_vat(db)
+    await _grant_amounts_to_existing_roles(db)
+    await _grant_prices_to_sales_roles(db)
+    await _reformat_plates(db)
     await db.commit()
+
+
+async def _reformat_plates(db: AsyncSession) -> None:
+    """Разово разбить уже сохранённые госномера на группы.
+
+    Первая версия нормализации только схлопывала пробелы, поэтому «01123ABC»
+    так и лежало комком и таким же печаталось в накладной. Правило поменялось
+    (app/plates.py) — прогоняем старые записи через него.
+    """
+    from .models import MaterialIssue, Sale
+    from .plates import format_plate
+
+    if await db.scalar(select(Setting).where(Setting.key == "plates_regrouped")):
+        return
+    for model in (MaterialReceipt, MaterialIssue, Sale):
+        rows = (await db.execute(
+            select(model).where(model.vehicle_no != "")
+        )).scalars().all()
+        for r in rows:
+            fixed = format_plate(r.vehicle_no)
+            if fixed != r.vehicle_no:
+                r.vehicle_no = fixed
+    db.add(Setting(key="plates_regrouped", value="1",
+                   label="Госномера разбиты на группы", group="Служебное", kind="text"))
+
+
+async def _grant_amounts_to_existing_roles(db: AsyncSession) -> None:
+    """Разово выдать «amounts:view» ролям, которые уже были в базе.
+
+    Право появилось позже и ГАСИТ суммы у того, у кого его нет. Без этой
+    выдачи обновление молча ослепило бы всех действующих пользователей.
+    Новое ограничение должен включать администратор, а не апдейт.
+    """
+    if await db.scalar(select(Setting).where(Setting.key == "amounts_perm_granted")):
+        return
+    for role in (await db.execute(select(Role))).scalars().all():
+        perms = list(role.permissions or [])
+        # роль «Без доступа» пустая намеренно — её не трогаем
+        if perms and "amounts:view" not in perms:
+            role.permissions = perms + ["amounts:view"]
+    db.add(Setting(key="amounts_perm_granted", value="1",
+                   label="Право «Суммы» выдано старым ролям", group="Служебное", kind="text"))
+
+
+async def _grant_prices_to_sales_roles(db: AsyncSession) -> None:
+    """Прайс-лист выдать тем, кто и так заводит продажи.
+
+    Иначе новый раздел не увидит никто, включая бухгалтера, который его и
+    ждёт, — а искать причину он пойдёт не в «Роли», а к разработчику.
+    """
+    if await db.scalar(select(Setting).where(Setting.key == "prices_perm_granted")):
+        return
+    for role in (await db.execute(select(Role))).scalars().all():
+        perms = list(role.permissions or [])
+        if "sales:create" in perms or "sales:edit" in perms:
+            perms += [p for p in ("prices:view", "prices:edit") if p not in perms]
+            role.permissions = perms
+    db.add(Setting(key="prices_perm_granted", value="1",
+                   label="Прайс-лист выдан ролям продаж", group="Служебное", kind="text"))
 
 
 async def _backfill_receipt_vat(db: AsyncSession) -> None:

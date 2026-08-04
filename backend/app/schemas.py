@@ -1,6 +1,9 @@
 from datetime import date, datetime
+from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, computed_field
+from pydantic import AfterValidator, BaseModel, ConfigDict, EmailStr, Field, computed_field
+
+from .plates import format_plate
 
 
 class ORMModel(BaseModel):
@@ -366,6 +369,12 @@ class MaterialOut(ORMModel, MaterialBase):
 
 
 # ---------- Inventory movements / production / sales ----------
+# Госномер к единому виду: «01a123bc», «01 A 123 BC» и «01A 123BC» — одна и та
+# же машина, иначе фильтр по авто разваливается на несколько вариантов, а в
+# накладной печатается нечитаемый комок. Правило — в app/plates.py.
+VehicleNo = Annotated[str, AfterValidator(format_plate)]
+
+
 class ReceiptBase(BaseModel):
     doc_date: date
     material_id: int
@@ -374,6 +383,7 @@ class ReceiptBase(BaseModel):
     qty: float
     price_uzs: float = 0
     vat: bool = False
+    vehicle_no: VehicleNo = ""  # госномер машины, которой привезли груз
     payment_type: str = ""      # Наличные / Перечисление / КПК
     note: str = ""
 
@@ -394,6 +404,7 @@ class IssueBase(BaseModel):
     expense_code: str = ""
     qty: float
     vat: bool = False
+    vehicle_no: VehicleNo = ""  # госномер машины, которой вывезли материал
     note: str = ""
 
 
@@ -426,8 +437,11 @@ class SaleBase(BaseModel):
     organization_id: int | None = None
     division: str = ""
     qty: float
+    # цена из счёта-фактуры: при vat=True НДС сидит ВНУТРИ неё и выделяется
+    # обратным счётом, при vat=False налога нет и вся сумма — выручка
     price_uzs: float = 0
     vat: bool = False
+    vehicle_no: VehicleNo = ""  # госномер машины, которой отгрузили продукцию
     payment_type: str = ""      # Наличные / Перечисление / КПК
     note: str = ""
 
@@ -439,6 +453,34 @@ class SaleOut(ORMModel, SaleBase):
     cogs_uzs: float
     product: ProductOut | None = None
     organization: OrgOut | None = None
+
+
+# ---------- Пакетный ввод ----------
+# Экраны склада вводят документы таблицей: одна поставка — десяток строк.
+# Пакет пишется одной транзакцией: либо проходят все строки, либо ни одной,
+# иначе половина накладной осталась бы в базе после ошибки на пятой строке.
+BATCH_MAX = 200
+
+
+class ReceiptBatch(BaseModel):
+    items: list[ReceiptBase] = Field(min_length=1, max_length=BATCH_MAX)
+
+
+class IssueBatch(BaseModel):
+    items: list[IssueBase] = Field(min_length=1, max_length=BATCH_MAX)
+
+
+class ProductionBatch(BaseModel):
+    items: list[ProductionBase] = Field(min_length=1, max_length=BATCH_MAX)
+
+
+class SaleBatch(BaseModel):
+    items: list[SaleBase] = Field(min_length=1, max_length=BATCH_MAX)
+
+
+class BatchResult(BaseModel):
+    created: int
+    ids: list[int]
 
 
 # ---------- Services ----------

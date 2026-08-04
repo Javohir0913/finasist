@@ -98,13 +98,18 @@ export default function Layout({ children }: { children: ReactNode }) {
 
       {open && <div className="fixed inset-0 z-30 backdrop-veil lg:hidden" onClick={() => setOpen(false)} />}
 
-      {/* Main */}
-      <div className="flex flex-col min-h-screen">
+      {/* Main.
+          min-w-0 обязателен: колонка сетки «1fr» по умолчанию не сжимается
+          уже своего содержимого, поэтому один широкий элемент внутри (таблица,
+          длинный <select>) растягивал колонку и горизонтально ехала ВСЯ
+          страница — вместе с закреплённой шапкой. Прокрутка широких таблиц
+          должна жить внутри самой таблицы, а не на странице. */}
+      <div className="flex flex-col min-h-screen min-w-0">
         <header className="sticky top-0 z-20 h-16 flex items-center justify-between gap-4 px-5 lg:px-8 bg-base-950/70 backdrop-blur-xl border-b border-line">
           <button className="lg:hidden text-slate-300" onClick={() => setOpen(true)}>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 6h18M3 12h18M3 18h18" /></svg>
           </button>
-          <div className="hidden sm:block text-sm text-slate-400">
+          <div className="hidden sm:block text-sm text-slate-400 min-w-0 truncate">
             ООО <span className="text-slate-200 font-semibold">«PROFIT DIVIDER»</span> · Финансовая система
           </div>
           <div className="flex items-center gap-3 ml-auto">
@@ -121,7 +126,11 @@ export default function Layout({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <main className="flex-1 p-5 lg:p-8 max-w-[1500px] w-full mx-auto">{children}</main>
+        {/* 2xl: на широком мониторе плотным реестрам (12–14 денежных колонок)
+            даём больше места — иначе они прокручиваются там, где экрана хватает */}
+        <main className="flex-1 p-5 lg:p-8 max-w-[1500px] 2xl:max-w-[1760px] w-full mx-auto min-w-0">
+          {children}
+        </main>
       </div>
     </div>
   );

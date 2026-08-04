@@ -1,5 +1,6 @@
 import clsx from "clsx";
-import { ReactNode, useEffect, useRef, useState } from "react";
+import { ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 // ---- Searchable select (combobox): filter long option lists by typing ----
 export function SearchSelect({
@@ -9,6 +10,7 @@ export function SearchSelect({
   placeholder = "— выбрать —",
   allowEmpty = true,
   emptyLabel = "— не выбрано —",
+  className = "input",
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -16,53 +18,94 @@ export function SearchSelect({
   placeholder?: string;
   allowEmpty?: boolean;
   emptyLabel?: string;
+  className?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
+  const [box, setBox] = useState({ top: 0, left: 0, width: 0 });
   const ref = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const selected = options.find((o) => o.value === value);
   const ql = q.toLowerCase();
   const filtered = q
     ? options.filter((o) => (o.search ?? o.label).toLowerCase().includes(ql))
     : options;
 
+  const close = () => { setOpen(false); setQ(""); };
+
   useEffect(() => {
+    // клик мимо закрывает список. Меню живёт в портале и в ref не попадает,
+    // поэтому проверяем оба узла — иначе выбор пункта закрывал бы список
+    // раньше, чем срабатывал onClick.
     const h = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-        setQ("");
-      }
+      const t = e.target as Node;
+      if (!ref.current?.contains(t) && !menuRef.current?.contains(t)) close();
     };
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
-  const pick = (v: string) => {
-    onChange(v);
-    setOpen(false);
-    setQ("");
+  const pick = (v: string) => { onChange(v); close(); };
+
+  /**
+   * Меню рендерится ПОРТАЛОМ в body с position: fixed.
+   *
+   * Иначе внутри таблицы пакетного ввода (`overflow-x-auto`) абсолютно
+   * позиционированный список обрезался бы скролл-контейнером: у ячейки в
+   * середине таблицы было бы видно две строки из ста.
+   */
+  const place = () => {
+    const r = ref.current?.getBoundingClientRect();
+    if (!r) return;
+    const width = Math.max(r.width, 240);
+    setBox({
+      top: r.bottom + 4,
+      // не даём списку вылезти за правый край окна
+      left: Math.max(8, Math.min(r.left, window.innerWidth - width - 8)),
+      width,
+    });
   };
 
-  // список раскрывается внутри прокручиваемой модалки и может оказаться
-  // за нижним краем — подтягиваем его в видимую часть
+  useLayoutEffect(() => {
+    if (!open) return;
+    place();
+    // страница/модалка могут прокрутиться, пока список открыт — тогда он
+    // «отклеился» бы от своей ячейки. capture: ловим скролл любого предка.
+    const on = () => place();
+    window.addEventListener("scroll", on, true);
+    window.addEventListener("resize", on);
+    return () => {
+      window.removeEventListener("scroll", on, true);
+      window.removeEventListener("resize", on);
+    };
+  }, [open]);
+
   useEffect(() => {
-    if (open) ref.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    if (!open) return;
+    const h = (e: KeyboardEvent) => e.key === "Escape" && close();
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
   }, [open]);
 
   return (
     <div className="relative" ref={ref}>
       <button
         type="button"
-        className="input text-left flex items-center justify-between gap-2"
+        className={clsx(className, "text-left flex items-center justify-between gap-2")}
         onClick={() => setOpen((o) => !o)}
+        title={selected?.label}
       >
         <span className={clsx("truncate", !selected && "text-slate-500")}>
           {selected ? selected.label : placeholder}
         </span>
         <span className="text-slate-500 shrink-0">▾</span>
       </button>
-      {open && (
-        <div className="absolute z-[70] mt-1 w-full rounded-xl border border-line bg-base-850 shadow-card p-2 max-h-72 overflow-auto">
+      {open && createPortal(
+        <div
+          ref={menuRef}
+          style={{ top: box.top, left: box.left, width: box.width }}
+          className="fixed z-[90] rounded-xl border border-line bg-base-850 shadow-card p-2 max-h-72 overflow-auto"
+        >
           <input
             autoFocus
             className="input mb-2 sticky top-0"
@@ -96,7 +139,8 @@ export function SearchSelect({
               <div className="text-slate-600 text-xs px-2 py-1.5">Показаны первые 100 — уточните поиск</div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

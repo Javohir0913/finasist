@@ -13,6 +13,7 @@ import Login from "./pages/Login";
 import Materials from "./pages/Materials";
 import Organizations from "./pages/Organizations";
 import Payroll from "./pages/Payroll";
+import Prices from "./pages/Prices";
 import Products from "./pages/Products";
 import Reports from "./pages/Reports";
 import Roles from "./pages/Roles";
@@ -82,6 +83,7 @@ export default function App() {
                 <Route path="/exchange" element={<Guard perm="exchange:view"><Exchange /></Guard>} />
                 <Route path="/inventory" element={<Guard perm="materials:view"><Inventory /></Guard>} />
                 <Route path="/products" element={<Guard perm="products:view"><Products /></Guard>} />
+                <Route path="/prices" element={<Guard perm="prices:view"><Prices /></Guard>} />
                 <Route path="/materials" element={<Guard perm="materials:view"><Materials /></Guard>} />
                 <Route path="/payroll" element={<Guard perm="payroll:view"><Payroll /></Guard>} />
                 <Route path="/users" element={<Guard perm="users:view"><Users /></Guard>} />

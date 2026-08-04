@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import api, { apiError } from "../api/client";
+import PrintFormEditor from "../components/PrintFormEditor";
 import { Card, MoneyInput, SectionTitle, Spinner } from "../components/ui";
 import { useApi } from "../lib/useApi";
 import { useAuth } from "../store/auth";
@@ -86,9 +87,11 @@ export default function Settings() {
           </div>
         </Card>
       ))}
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-slate-500 mb-6">
         Пример: НДС 12% = введите <b>12</b>. Изменение ставки влияет на новые расчёты (зарплата, НДС в продажах/услугах, налог на прибыль в ОФР).
       </p>
+
+      <PrintFormEditor editable={editable} />
     </div>
   );
 }

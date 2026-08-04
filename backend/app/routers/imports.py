@@ -31,6 +31,7 @@ from ..models import (
 )
 from ..periods import closed_periods, period_of
 from ..rates import get_rates
+from ..plates import format_plate
 from ..security import require
 from .inventory import recompute_material, recompute_product
 from .transactions import _resolve_rate, _usd, _uzs
@@ -42,6 +43,11 @@ MAX_ROWS = 20000
 
 def _norm(v) -> str:
     return " ".join(str(v).strip().lower().split()) if v is not None else ""
+
+
+def _plate(v) -> str:
+    """Госномер из файла — к тому же виду, что и введённый руками."""
+    return format_plate(v)
 
 
 def _read(file_bytes: bytes) -> list[dict]:
@@ -334,6 +340,8 @@ def _receipt_row(row: dict, res: Resolver) -> dict:
     rec = MaterialReceipt(
         doc_date=d, material_id=mat.id, organization_id=org.id if org else None,
         division=str(_pick(row, "Дробилка", "Объект", "division") or ""),
+        vehicle_no=_plate(_pick(row, "Авто номер", "Гос. номер", "Госномер",
+                                "Автомобиль", "vehicle_no")),
         qty=qty, price_uzs=price, amount_uzs=round(qty * price, 2),
         vat=_flag(row, "НДС", "vat"), note=str(_pick(row, "Примечание", "note") or ""),
     )
@@ -354,6 +362,8 @@ def _sale_row(row: dict, res: Resolver) -> dict:
     sale = Sale(
         doc_date=d, product_id=prod.id, organization_id=org.id if org else None,
         division=str(_pick(row, "Объект", "division") or ""),
+        vehicle_no=_plate(_pick(row, "Авто номер", "Гос. номер", "Госномер",
+                                "Автомобиль", "vehicle_no")),
         qty=qty, price_uzs=price, vat=_flag(row, "НДС", "vat"),
         note=str(_pick(row, "Примечание", "note") or ""),
     )

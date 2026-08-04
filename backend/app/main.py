@@ -19,6 +19,8 @@ from .routers import (
     organizations,
     payroll,
     periods,
+    prices,
+    printing,
     products,
     reports,
     roles,
@@ -84,6 +86,8 @@ for r in (
     dashboard.router,
     exports.router,
     imports.router,
+    printing.router,
+    prices.router,
 ):
     app.include_router(r)
 

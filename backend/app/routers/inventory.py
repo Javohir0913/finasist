@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 from ..database import get_db
 from ..events import record
 from ..ledger import recompute_org_balances
+from ..money import hide_all, require_money, sees_money
 from ..models import (
     ExchangeRate,
     Material,
@@ -26,18 +27,92 @@ from ..production import recompute_production
 from ..rates import get_rates
 from ..stock import apply_receipt
 from ..schemas import (
+    BatchResult,
     IssueBase,
+    IssueBatch,
     IssueOut,
     ProductionBase,
+    ProductionBatch,
     ProductionOut,
     ReceiptBase,
+    ReceiptBatch,
     ReceiptOut,
     SaleBase,
+    SaleBatch,
     SaleOut,
 )
 from ..security import require
 
 router = APIRouter(prefix="/api", tags=["inventory"])
+
+
+# ================= ПАКЕТНЫЙ ВВОД =================
+# Склад вводится таблицей: одна поставка — десяток строк. Пакет обрабатывается
+# ТЕМИ ЖЕ функциями, что и одиночный документ, и в одной транзакции.
+#
+# Почему пересчёт можно звать один раз в конце, а не после каждой строки:
+# recompute_material / recompute_product / recompute_production делают ПОЛНЫЙ
+# реплей движений с начала учёта, а не инкремент. Значит «вставили 10 строк →
+# пересчитали» даёт ровно тот же результат, что «вставили строку → пересчитали»
+# десять раз, только без девяти лишних проходов.
+#
+# Единственное, что нельзя откладывать, — проверка остатка: она читает
+# MaterialStock.stock_qty, который обновляет как раз пересчёт. Поэтому расход и
+# продажа считают списанное по пакету НАРАСТАЮЩИМ итогом (см. _Running).
+
+
+def _row_error(i: int, exc: HTTPException) -> HTTPException:
+    """Ошибку строки показываем с её номером — иначе непонятно, что править."""
+    return HTTPException(exc.status_code, detail=f"Строка {i + 1}: {exc.detail}")
+
+
+class _Running(dict):
+    """Сколько уже списано в этом пакете по ключу (номенклатура, объект).
+
+    Две строки по одному материалу с одного объекта расходуют ОДИН остаток:
+    проверять каждую по отдельности — значит пропустить пакет, который в сумме
+    уводит склад в минус.
+    """
+
+    def take(self, owner_id: int, division: str, qty: float) -> float:
+        key = (owner_id, (division or "").strip())
+        self[key] = self.get(key, 0.0) + float(qty)
+        return self[key]
+
+
+# Денежные поля каждого реестра — их гасит право «Суммы и цены» (app/money.py).
+# Вложенные карточки номенклатуры тоже носят деньги (средняя себестоимость),
+# поэтому чистятся вместе с документом.
+_MAT = {"material": ("avg_cost", "opening_cost", "price_usd")}
+_PRD = {"product": ("avg_cost", "opening_cost", "price_usd", "sale_price")}
+MONEY = {
+    "receipt": (("price_uzs", "amount_uzs", "vat_amount", "amount_gross"), _MAT),
+    "issue": (("cost_uzs",), _MAT),
+    "production": (("unit_cost", "amount_uzs"), _PRD),
+    "sale": (("price_uzs", "revenue_net", "vat_amount", "cogs_uzs"), _PRD),
+}
+
+
+def _money_view(kind: str, model, rows, current: User):
+    """Список документов: с деньгами или без — по праву пользователя."""
+    out = [model.model_validate(r) for r in rows]
+    if sees_money(current):
+        return out
+    fields, nested = MONEY[kind]
+    return hide_all(out, *fields, nested=nested)
+
+
+def _prod_keys(rows) -> list[tuple[str, object]]:
+    """(подразделение, дата) по одному разу на каждый затронутый МЕСЯЦ.
+
+    recompute_production переписывает весь месяц подразделения, поэтому
+    десять строк одного месяца — это один пересчёт, а не десять.
+    """
+    seen: dict[tuple[str, int, int], tuple[str, object]] = {}
+    for r in rows:
+        d = r.doc_date
+        seen.setdefault(((r.division or "").strip(), d.year, d.month), (r.division, d))
+    return list(seen.values())
 
 
 def by_period(stmt, col, year: int | None, month: int | None):
@@ -59,7 +134,7 @@ async def material_stocks(
     material_id: int | None = None,
     division: str | None = None,
     kind: str | None = None,
-    _: User = Depends(require("materials:view")),
+    current: User = Depends(require("materials:view")),
     db: AsyncSession = Depends(get_db),
 ):
     """Остаток сырья/запчастей в разрезе подразделений (дробилок)."""
@@ -83,7 +158,7 @@ async def material_stocks(
             "opening_qty": float(st.opening_qty or 0), "opening_cost": float(st.opening_cost or 0),
             "stock_qty": qty, "avg_cost": avg, "value": round(qty * avg, 2),
         })
-    return {"rows": rows, "total_value": round(sum(r["value"] for r in rows), 2)}
+    return _stock_money(rows, current)
 
 
 @router.put("/material-stocks")
@@ -119,7 +194,7 @@ async def set_material_opening(
 async def product_stocks(
     product_id: int | None = None,
     division: str | None = None,
-    _: User = Depends(require("products:view")),
+    current: User = Depends(require("products:view")),
     db: AsyncSession = Depends(get_db),
 ):
     """Остаток готовой продукции в разрезе подразделений."""
@@ -140,7 +215,7 @@ async def product_stocks(
             "opening_qty": float(st.opening_qty or 0), "opening_cost": float(st.opening_cost or 0),
             "stock_qty": qty, "avg_cost": avg, "value": round(qty * avg, 2),
         })
-    return {"rows": rows, "total_value": round(sum(r["value"] for r in rows), 2)}
+    return _stock_money(rows, current)
 
 
 @router.put("/product-stocks")
@@ -170,6 +245,14 @@ async def set_product_opening(
     await db.commit()
     await record(db, current, "edit", "product_stock", f"#{pid} {division or 'общий'}")
     return {"ok": True}
+
+
+def _stock_money(rows: list[dict], current: User) -> dict:
+    """Остатки: количества видны всем, стоимость — только с правом «Суммы»."""
+    if not sees_money(current):
+        for r in rows:
+            r["opening_cost"] = r["avg_cost"] = r["value"] = 0.0
+    return {"rows": rows, "total_value": round(sum(r["value"] for r in rows), 2)}
 
 
 async def _latest_rate(db: AsyncSession) -> float:
@@ -385,11 +468,12 @@ async def list_receipts(year: int | None = None, month: int | None = None, curre
     if limit_from:
         stmt = stmt.where(MaterialReceipt.doc_date >= limit_from)
     res = await db.execute(by_period(stmt, MaterialReceipt.doc_date, year, month))
-    return res.scalars().all()
+    return _money_view("receipt", ReceiptOut, res.scalars().all(), current)
 
 
 @router.post("/material-receipts", response_model=ReceiptOut, status_code=201)
 async def create_receipt(body: ReceiptBase, current: User = Depends(require("materials:create")), db: AsyncSession = Depends(get_db)):
+    require_money(current, "приход ТМЦ")
     await assert_open(db, body.doc_date, what="приход ТМЦ")
     row = MaterialReceipt(**body.model_dump(), created_by=current.id)
     db.add(row)
@@ -403,8 +487,32 @@ async def create_receipt(body: ReceiptBase, current: User = Depends(require("mat
     return row
 
 
+@router.post("/material-receipts/batch", response_model=BatchResult, status_code=201)
+async def create_receipts_batch(body: ReceiptBatch, current: User = Depends(require("materials:create")), db: AsyncSession = Depends(get_db)):
+    """Приход пачкой. Остаток приход только увеличивает — проверять нечего."""
+    require_money(current, "приход ТМЦ")
+    await assert_open(db, *[b.doc_date for b in body.items], what="приход ТМЦ")
+    rows = []
+    for i, b in enumerate(body.items):
+        if not await db.get(Material, b.material_id):
+            raise HTTPException(404, detail=f"Строка {i + 1}: материал не найден")
+        rows.append(MaterialReceipt(**b.model_dump(), created_by=current.id))
+    db.add_all(rows)
+    await db.flush()
+    for mid in {r.material_id for r in rows}:
+        await recompute_material(db, mid)
+    for div, when in _prod_keys(rows):
+        await recompute_production(db, div, when)
+    await _sync_orgs(db, *{r.organization_id for r in rows})
+    await db.commit()
+    ids = [r.id for r in rows]
+    await record(db, current, "create", "material_receipt", f"{len(ids)} строк", {"ids": ids})
+    return {"created": len(ids), "ids": ids}
+
+
 @router.put("/material-receipts/{rid}", response_model=ReceiptOut)
 async def update_receipt(rid: int, body: ReceiptBase, current: User = Depends(require("materials:edit")), db: AsyncSession = Depends(get_db)):
+    require_money(current, "приход ТМЦ")
     row = await db.get(MaterialReceipt, rid)
     if not row:
         raise HTTPException(404, detail="Не найдено")
@@ -451,7 +559,7 @@ async def list_issues(year: int | None = None, month: int | None = None, current
     if limit_from:
         stmt = stmt.where(MaterialIssue.doc_date >= limit_from)
     res = await db.execute(by_period(stmt, MaterialIssue.doc_date, year, month))
-    return res.scalars().all()
+    return _money_view("issue", IssueOut, res.scalars().all(), current)
 
 
 @router.post("/material-issues", response_model=IssueOut, status_code=201)
@@ -470,6 +578,32 @@ async def create_issue(body: IssueBase, current: User = Depends(require("materia
     await db.refresh(row, ["material"])
     await record(db, current, "create", "material_issue", f"{body.qty}", {"id": row.id})
     return row
+
+
+@router.post("/material-issues/batch", response_model=BatchResult, status_code=201)
+async def create_issues_batch(body: IssueBatch, current: User = Depends(require("materials:create")), db: AsyncSession = Depends(get_db)):
+    """Расход пачкой. Остаток проверяется нарастающим итогом по всему пакету."""
+    await assert_open(db, *[b.doc_date for b in body.items], what="расход ТМЦ")
+    taken, rows = _Running(), []
+    for i, b in enumerate(body.items):
+        mat = await db.get(Material, b.material_id)
+        if not mat:
+            raise HTTPException(404, detail=f"Строка {i + 1}: материал не найден")
+        try:
+            await _check_material_stock(db, mat, b.division, taken.take(mat.id, b.division, b.qty))
+        except HTTPException as exc:
+            raise _row_error(i, exc) from None
+        rows.append(MaterialIssue(**b.model_dump(), created_by=current.id))
+    db.add_all(rows)
+    await db.flush()
+    for mid in {r.material_id for r in rows}:
+        await recompute_material(db, mid)
+    for div, when in _prod_keys(rows):
+        await recompute_production(db, div, when)
+    await db.commit()
+    ids = [r.id for r in rows]
+    await record(db, current, "create", "material_issue", f"{len(ids)} строк", {"ids": ids})
+    return {"created": len(ids), "ids": ids}
 
 
 @router.put("/material-issues/{rid}", response_model=IssueOut)
@@ -520,7 +654,7 @@ async def list_prod(year: int | None = None, month: int | None = None, current: 
     if limit_from:
         stmt = stmt.where(Production.doc_date >= limit_from)
     res = await db.execute(by_period(stmt, Production.doc_date, year, month))
-    return res.scalars().all()
+    return _money_view("production", ProductionOut, res.scalars().all(), current)
 
 
 @router.post("/productions", response_model=ProductionOut, status_code=201)
@@ -539,6 +673,30 @@ async def create_prod(body: ProductionBase, current: User = Depends(require("pro
     await db.refresh(row, ["product"])
     await record(db, current, "create", "production", f"{body.qty}", {"id": row.id})
     return row
+
+
+@router.post("/productions/batch", response_model=BatchResult, status_code=201)
+async def create_prods_batch(body: ProductionBatch, current: User = Depends(require("production:create")), db: AsyncSession = Depends(get_db)):
+    """Выпуск пачкой. Себестоимость, как и у одиночного документа, не
+    принимается: её считает recompute_production на весь месяц сразу."""
+    await assert_open(db, *[b.doc_date for b in body.items], what="выпуск продукции")
+    rows = []
+    for i, b in enumerate(body.items):
+        if not await db.get(Product, b.product_id):
+            raise HTTPException(404, detail=f"Строка {i + 1}: продукция не найдена")
+        data = b.model_dump()
+        data.pop("unit_cost", None)
+        rows.append(Production(**data, created_by=current.id))
+    db.add_all(rows)
+    await db.flush()
+    for div, when in _prod_keys(rows):
+        await recompute_production(db, div, when)
+    for pid in {r.product_id for r in rows}:
+        await recompute_product(db, pid)
+    await db.commit()
+    ids = [r.id for r in rows]
+    await record(db, current, "create", "production", f"{len(ids)} строк", {"ids": ids})
+    return {"created": len(ids), "ids": ids}
 
 
 @router.put("/productions/{rid}", response_model=ProductionOut)
@@ -589,11 +747,12 @@ async def list_sales(year: int | None = None, month: int | None = None, current:
     if limit_from:
         stmt = stmt.where(Sale.doc_date >= limit_from)
     res = await db.execute(by_period(stmt, Sale.doc_date, year, month))
-    return res.scalars().all()
+    return _money_view("sale", SaleOut, res.scalars().all(), current)
 
 
 @router.post("/sales", response_model=SaleOut, status_code=201)
 async def create_sale(body: SaleBase, current: User = Depends(require("sales:create")), db: AsyncSession = Depends(get_db)):
+    require_money(current, "продажу")
     prod = await db.get(Product, body.product_id)
     if not prod:
         raise HTTPException(404, detail="Продукция не найдена")
@@ -611,8 +770,36 @@ async def create_sale(body: SaleBase, current: User = Depends(require("sales:cre
     return row
 
 
+@router.post("/sales/batch", response_model=BatchResult, status_code=201)
+async def create_sales_batch(body: SaleBatch, current: User = Depends(require("sales:create")), db: AsyncSession = Depends(get_db)):
+    """Продажа пачкой. Остаток ГП проверяется нарастающим итогом по пакету."""
+    require_money(current, "продажу")
+    await assert_open(db, *[b.doc_date for b in body.items], what="продажу")
+    taken, rows = _Running(), []
+    for i, b in enumerate(body.items):
+        prod = await db.get(Product, b.product_id)
+        if not prod:
+            raise HTTPException(404, detail=f"Строка {i + 1}: продукция не найдена")
+        try:
+            await _check_stock(db, prod, b.division, taken.take(prod.id, b.division, b.qty))
+        except HTTPException as exc:
+            raise _row_error(i, exc) from None
+        rows.append(Sale(**b.model_dump(), created_by=current.id))
+    db.add_all(rows)
+    await db.flush()
+    for pid in {r.product_id for r in rows}:
+        await recompute_product(db, pid)
+    # продажа -> дебиторка покупателя (нам должны за отгрузку, с НДС)
+    await _sync_orgs(db, *{r.organization_id for r in rows})
+    await db.commit()
+    ids = [r.id for r in rows]
+    await record(db, current, "create", "sale", f"{len(ids)} строк", {"ids": ids})
+    return {"created": len(ids), "ids": ids}
+
+
 @router.put("/sales/{rid}", response_model=SaleOut)
 async def update_sale(rid: int, body: SaleBase, current: User = Depends(require("sales:edit")), db: AsyncSession = Depends(get_db)):
+    require_money(current, "продажу")
     row = await db.get(Sale, rid)
     if not row:
         raise HTTPException(404, detail="Не найдено")

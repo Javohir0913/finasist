@@ -26,6 +26,7 @@ from ..models import (
     User,
 )
 from ..periods import assert_open
+from ..rates import get_rates
 from ..schemas import (
     BankAccountBase,
     BankAccountOut,
@@ -76,9 +77,12 @@ CF_KEYS = {k for k, _ in CF_ACTIVITIES}
 
 
 @router.get("/lookups")
-async def lookups(_: User = Depends(get_current_user)):
+async def lookups(_: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Списки-подсказки из книги Excel (лист «INFO зарплата» и «INFO»)."""
     return {
+        # ставка НДС настраиваемая — форма должна подписывать её так же, как
+        # считает сервер, иначе «12 %» в интерфейсе разойдётся с расчётом
+        "ndsRate": (await get_rates(db))["nds_rate"],
         "payCategories": _REF.get("payCategories", []),
         "payGroups": _REF.get("payGroups", []),
         "payStatuses": _REF.get("payStatuses", []),

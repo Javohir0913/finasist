@@ -20,6 +20,7 @@ export const icons = {
   users: I("M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM23 21v-2a4 4 0 0 0-3-3.87M16 3.13A4 4 0 0 1 16 11"),
   roles: I("M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10ZM9 12l2 2 4-4"),
   closing: I("M7 11V7a5 5 0 0 1 10 0v4M5 11h14v10H5V11Zm7 4v2"),
+  price: I("M20.6 13.4 12 22l-9-9V3h10l7.6 7.6a2 2 0 0 1 0 2.8ZM7.5 7.5h.01"),
 };
 
 export interface NavItem {
@@ -44,6 +45,7 @@ export const NAV: NavItem[] = [
   { to: "/exchange", label: "Курс доллара", perm: "exchange:view", icon: icons.exchange, group: "Финансы" },
   { to: "/inventory", label: "Склад и производство", perm: "materials:view", icon: icons.material, group: "Склад" },
   { to: "/products", label: "Готовая продукция", perm: "products:view", icon: icons.product, group: "Склад" },
+  { to: "/prices", label: "Прайс-лист", perm: "prices:view", icon: icons.price, group: "Склад" },
   { to: "/materials", label: "Справочник сырья", perm: "materials:view", icon: icons.counter, group: "Склад" },
   { to: "/payroll", label: "Зарплата", perm: "payroll:view", icon: icons.users, group: "Персонал" },
   { to: "/users", label: "Пользователи", perm: "users:view", icon: icons.users, group: "Администрирование" },

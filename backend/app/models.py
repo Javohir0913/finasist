@@ -172,6 +172,56 @@ class Setting(Base):
     kind: Mapped[str] = mapped_column(String(20), default="percent")  # percent | number | text
 
 
+class ProductPrice(Base):
+    """Цена продукции для конкретного покупателя, действующая С ДАТЫ.
+
+    Хранится не «текущая цена», а история: 01.08 — 80 000, 07.08 — 100 000.
+    Цена продажи ищется как последняя запись с start_date <= даты документа,
+    поэтому задним числом ничего не съезжает.
+
+    ВАЖНО: это только подсказка для формы. В самой продаже цена ЛЕЖИТ СВОЯ
+    (Sale.price_uzs) — она копируется в документ при вводе. Новая цена в
+    прайсе никогда не переписывает уже проведённые продажи.
+    """
+
+    __tablename__ = "product_prices"
+    __table_args__ = (
+        UniqueConstraint("organization_id", "product_id", "start_date", name="uq_price_day"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"), index=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), index=True)
+    start_date: Mapped[date] = mapped_column(Date, index=True)
+    price_uzs: Mapped[float] = mapped_column(Numeric(18, 2), default=0)
+    # цена указана С НДС внутри — тот же смысл, что у флажка в продаже.
+    # Подставляется вместе с ценой, чтобы не отмечать НДС руками на каждой строке.
+    vat: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    product: Mapped["Product"] = relationship()
+    organization: Mapped["Organization"] = relationship()
+
+
+class PrintForm(Base):
+    """Настройка печатной формы (ТТН и т.п.) — конструктор из галочек и текстов.
+
+    Хранится JSON, а не колонки: набор полей бланка меняется чаще, чем схема
+    базы, и добавление галочки не должно требовать миграции. `Setting` тут не
+    годится — там `value` всего 80 символов, а сюда попадают адрес, реквизиты
+    и логотип в data-URI.
+    """
+
+    __tablename__ = "print_forms"
+
+    key: Mapped[str] = mapped_column(String(40), primary_key=True)  # "ttn"
+    config: Mapped[dict] = mapped_column(JSONB, default=dict)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
 class ExpenseCode(Base):
     """Справочник статей расходов (Xarajat kodi) — коды 20xx/941xx/942xx/943xx.
 
@@ -372,6 +422,8 @@ class MaterialReceipt(Base):
     vat: Mapped[bool] = mapped_column(Boolean, default=False)  # плательщик НДС
     vat_amount: Mapped[float] = mapped_column(Numeric(20, 2), default=0)  # сумма НДС
     amount_gross: Mapped[float] = mapped_column(Numeric(20, 2), default=0)  # сумма с НДС
+    # госномер машины, которой привезли груз: «01 A 123 BC»
+    vehicle_no: Mapped[str] = mapped_column(String(32), default="")
     # вид оплаты из книги: Наличные / Перечисление / КПК
     payment_type: Mapped[str] = mapped_column(String(30), default="")
     note: Mapped[str] = mapped_column(String(255), default="")
@@ -393,7 +445,12 @@ class MaterialIssue(Base):
     division: Mapped[str] = mapped_column(String(80), default="", index=True)
     expense_code: Mapped[str] = mapped_column(String(20), default="")
     qty: Mapped[float] = mapped_column(Numeric(18, 3))
+    # НЕ ИСПОЛЬЗУЕТСЯ: расход — внутреннее списание со своего склада по средней
+    # себестоимости, НДС в нём не возникает. Колонка осталась от импорта книги,
+    # её никто не читает; из формы флажок убран.
     vat: Mapped[bool] = mapped_column(Boolean, default=False)
+    # госномер машины, которой вывезли материал: «01 A 123 BC»
+    vehicle_no: Mapped[str] = mapped_column(String(32), default="")
     cost_uzs: Mapped[float] = mapped_column(Numeric(20, 2), default=0)  # qty * avg на момент
     note: Mapped[str] = mapped_column(String(255), default="")
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
@@ -432,8 +489,12 @@ class Sale(Base):
     organization_id: Mapped[int | None] = mapped_column(ForeignKey("organizations.id"), nullable=True)
     division: Mapped[str] = mapped_column(String(80), default="", index=True)
     qty: Mapped[float] = mapped_column(Numeric(18, 3))
-    price_uzs: Mapped[float] = mapped_column(Numeric(18, 2), default=0)  # цена с НДС
+    # цена ИЗ СЧЁТА-ФАКТУРЫ: если vat=True — она с НДС внутри (налог выделяется
+    # обратным счётом 12/112), если vat=False — НДС нет и вся сумма это выручка
+    price_uzs: Mapped[float] = mapped_column(Numeric(18, 2), default=0)
     vat: Mapped[bool] = mapped_column(Boolean, default=False)
+    # госномер машины, которой отгрузили продукцию: «01 A 123 BC»
+    vehicle_no: Mapped[str] = mapped_column(String(32), default="")
     # вид оплаты из книги: Наличные / Перечисление / КПК
     payment_type: Mapped[str] = mapped_column(String(30), default="")
     revenue_net: Mapped[float] = mapped_column(Numeric(20, 2), default=0)  # без НДС
