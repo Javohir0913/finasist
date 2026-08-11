@@ -658,12 +658,16 @@ async def pnl(
     # Налог на прибыль (250): ТОЛЬКО начисленное в модуле «Налоги».
     # Автоподстановка по ставке убрана — налог считает бухгалтер, как земельный
     # и прочие налоги. Не начислено — в отчёте ноль, а не расчётная величина.
-    tax = float(
-        await db.scalar(
-            select(func.coalesce(func.sum(Tax.accrued), 0)).where(Tax.name.ilike("%прибыль%"))
+    # У «Налогов» нет подразделения (в книге строка 250 в листах ОФР по
+    # подразделениям тоже всегда 0 — налог на прибыль общефирменный).
+    tax = 0.0
+    if not division:
+        tax = float(
+            await db.scalar(
+                select(func.coalesce(func.sum(Tax.accrued), 0)).where(Tax.name.ilike("%прибыль%"))
+            )
+            or 0
         )
-        or 0
-    )
     other_taxes = g["profit_tax"]                              # 260
     net = before_tax - tax - other_taxes                        # 270
 
