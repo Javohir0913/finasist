@@ -27,7 +27,11 @@ frontend/dist/
 # ===== Env / secrets =====
 .env
 .env.local
+.env.bak.*
 backend/.env
+
+# ===== Резервные копии базы (backup.sh) =====
+backups/
 
 # ===== OS / editor =====
 .DS_Store
