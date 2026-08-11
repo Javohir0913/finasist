@@ -523,6 +523,11 @@ async def _expense_groups_uzs(db: AsyncSession, year, month, division=None) -> d
     stmt = _not_salary_payment(stmt, await _salary_org_ids(db))
     stmt = stmt.group_by(Transaction.expense_code, Transaction.direction)
     for code, direction, v in (await db.execute(_period(stmt, year, month))).all():
+        if not code:
+            # в книге это SUMIFS по коду: строка без кода не попадает никуда
+            # (как и для списания ТМЦ/услуг ниже) — не превращать её в «прочий
+            # административный расход» умолчанием _group_of
+            continue
         grp = _group_of(code, mapping)
         amount = float(v or 0)
         if grp in PNL_SKIP:
