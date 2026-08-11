@@ -42,3 +42,13 @@ async def get_rates(db: AsyncSession) -> dict:
         except (TypeError, ValueError):
             out[k] = dflt
     return out
+
+
+async def fx_enabled(db: AsyncSession) -> bool:
+    """Выключатель курсовой разницы (настройка «Учитывать курсовую разницу»).
+
+    В книге курс на весь период = 1, поэтому курсовой разницы там не бывает.
+    Пока выключено, все fx_income/fx_loss в отчётах — всегда 0.
+    """
+    v = await db.scalar(select(Setting.value).where(Setting.key == "fx_enabled"))
+    return (v if v is not None else "1") not in ("0", "false", "False", "")

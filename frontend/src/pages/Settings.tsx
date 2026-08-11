@@ -60,7 +60,17 @@ export default function Settings() {
                   {/* Числа и проценты — через MoneyInput: разряды по 3, запятая
                       как десятичный разделитель, а «e» и знаки не вводятся.
                       У штатного type="number" ввод «e» обнулял поле. */}
-                  {s.kind === "text" ? (
+                  {s.kind === "bool" ? (
+                    <label className="flex items-center gap-2 h-[38px] text-sm text-slate-300">
+                      <input
+                        type="checkbox"
+                        disabled={!editable}
+                        checked={vals[s.key] === "1"}
+                        onChange={(e) => setVals({ ...vals, [s.key]: e.target.checked ? "1" : "0" })}
+                      />
+                      {vals[s.key] === "1" ? "Включено" : "Выключено"}
+                    </label>
+                  ) : s.kind === "text" ? (
                     <input
                       className="input"
                       type={isDate(s) ? "date" : "text"}

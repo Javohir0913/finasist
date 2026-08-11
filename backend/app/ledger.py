@@ -41,7 +41,7 @@ from .models import (
     Service,
     Transaction,
 )
-from .rates import get_rates
+from .rates import fx_enabled, get_rates
 
 # ведомости Дт-Кт (листы Excel)
 LEDGERS = [
@@ -507,6 +507,7 @@ async def ledger_rows(
     mv = await org_movements(db, start, end)
     rates, last_rate = await _rate_map(db)
     rate_end = rate_on(rates, end, last_rate) if end else last_rate
+    fx_on = await fx_enabled(db)
 
     stmt = select(Organization).order_by(Organization.name)
     if ledger:
@@ -529,7 +530,7 @@ async def ledger_rows(
         closing = opening + td - tc
         closing_usd = opening_usd + td_u - tc_u
         # переоценка сальдо на конец периода по курсу на конец
-        fx = fx_of(closing, closing_usd, rate_end)
+        fx = fx_of(closing, closing_usd, rate_end) if fx_on else 0.0
         d = {
             "id": o.id, "name": o.name, "inn": o.inn,
             "ledger": o.ledger, "category": o.category, "expense_code": o.expense_code,

@@ -21,7 +21,7 @@ from ..ledger import (
 )
 from ..periods import setting_value
 from ..stock import stock_value_at
-from ..rates import get_rates
+from ..rates import fx_enabled, get_rates
 from ..models import (
     BankAccount,
     CashRegister,
@@ -844,6 +844,17 @@ async def fx_difference(
     rates, last_rate = await _rate_map(db)
     rate_end = rate_on(rates, end, last_rate) if end else last_rate
 
+    if not await fx_enabled(db):
+        # выключено в настройках — как в книге (курс весь период = 1)
+        rows = [
+            {"name": n, "income": 0.0, "loss": 0.0}
+            for n in ("Дебиторская и кредиторская задолженность",
+                      "Денежные средства на расчетном счете",
+                      "Денежные средства в кассе", "Выданные займы", "Полученные займы")
+        ]
+        return {"rate": rate_end, "currency": "USD", "rows": rows, "warnings": [],
+                "total_income": 0.0, "total_loss": 0.0, "net": 0.0}
+
     # ---- 1. дебиторская и кредиторская задолженность (построчно) ----
     led = await ledger_rows(db, None, start, end)
     org_income = led["totals"]["fx_income"]
@@ -982,6 +993,9 @@ async def fx_difference_documents(
     start, end = _period_bounds(year, month)
     rates, last_rate = await _rate_map(db)
     rate_end = rate_on(rates, end, last_rate) if end else last_rate
+    if not await fx_enabled(db):
+        return {"rate": rate_end, "currency": "USD", "orgs": [],
+                "totals": {"income": 0.0, "loss": 0.0, "net": 0.0, "docs": 0}}
     orgs = await org_fx_documents(db, start, end)
     income = sum(o["fx"] for o in orgs if o["fx"] > 0)
     loss = sum(-o["fx"] for o in orgs if o["fx"] < 0)
