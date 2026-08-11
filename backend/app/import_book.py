@@ -479,6 +479,26 @@ class Book:
         row = next(r for i, r in self.rows("Офис Note", 6, 6, 14))
         return round(num(row[11]), 2)   # L6 — итог «на конец, дебет»
 
+    def material_variance(self) -> dict[str, float]:
+        """«С-сть ГП», колонка F в заголовке каждого блока подразделения:
+
+            (выпуск ГП за месяц × ср. цена ШАГАЛ(код 1) по СКЛАДУ)
+                − (фактический расход ШАГАЛ по «Расход сырья и запчастей»)
+
+        Разница между плановым и фактическим расходом главного сырья книга
+        относит на строку 110/160/170 ОФР («Прочие расходы по финансовой
+        деятельности») — не по смыслу строки, а потому что кроме неё
+        подставить эту разницу больше некуда. Мы читаем готовое число
+        (не пересчитываем сами: для этого нужен ещё один не загруженный лист
+        «Cклад сырья оборот и запчасти»), по одному на подразделение.
+        """
+        out: dict[str, float] = {}
+        for _i, r in self.rows("С-сть ГП", 1, 30, 8):
+            division, v = txt(r[2]), r[5]
+            if division in ("Махстон", "Турк", "Жби") and isinstance(v, (int, float)):
+                out[division] = round(float(v), 2)
+        return out
+
 
 # ---------------------------------------------------------------- запись
 
@@ -908,6 +928,23 @@ async def run(path: str, do_wipe: bool, rates_path: str | None = None):
                 row.value = str(val)
         await db.flush()
         print(f"· ОС {fa:,.2f}; уставный капитал {cap:,.2f}")
+
+        # --- разница план/факт по сырью (лист «С-сть ГП»), на ОФР по объекту ---
+        period = f"{BOOK_YEAR}-{BOOK_MONTH:02d}"
+        variance = book.material_variance()
+        for division, v in variance.items():
+            key = f"fin_variance_{division}"
+            row = await db.scalar(
+                select(PeriodSetting).where(PeriodSetting.period == period, PeriodSetting.key == key)
+            )
+            if row is None:
+                db.add(PeriodSetting(period=period, key=key, value=str(v)))
+            else:
+                row.value = str(v)
+        await db.flush()
+        if variance:
+            print("· разница план/факт по сырью: " +
+                  ", ".join(f"{d} {v:,.2f}" for d, v in variance.items()))
 
         # --- пересчёт ---
         for p in prods.values():

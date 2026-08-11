@@ -38,6 +38,7 @@ from ..models import (
     MaterialStock,
     Organization,
     PayrollEntry,
+    PeriodSetting,
     Product,
     ProductStock,
     Production,
@@ -640,16 +641,33 @@ async def pnl(
 
     # --- финансовая деятельность (120 / 130) ---
     # курсовая разница — величина общефирменная, по подразделениям не делится
-    # (в книге листы «ОФР Махстон/Турк/Жби» финансового раздела не содержат)
     fx_income = fx_loss = 0.0
     if not division:
         fx = await fx_difference(year, month, None, db)
         rate = fx["rate"] or 1
         fx_income = round(fx["total_income"] * rate, 2)        # отчёт в USD -> сумы
         fx_loss = round(fx["total_loss"] * rate, 2)
+
+    # разница план/факт по сырью (лист «С-сть ГП» книги, см. import_book.py
+    # material_variance) — тоже ложится в 110/160/170. По компании в целом
+    # берём сумму ВСЕХ подразделений, плюсы и минусы отдельно, не сальдируя —
+    # как в листе «ОФР USD».
+    var_income = var_loss = 0.0
+    if year and month:
+        vstmt = select(PeriodSetting.value).where(
+            PeriodSetting.period == f"{year}-{int(month):02d}",
+            PeriodSetting.key == f"fin_variance_{division}" if division else PeriodSetting.key.like("fin_variance_%"),
+        )
+        for (val,) in (await db.execute(vstmt)).all():
+            v = float(val or 0)
+            if v >= 0:
+                var_income += v
+            else:
+                var_loss += -v
+
     fin_expense = g["financial"]
-    fin_income = fx_income
-    fin_loss = fin_expense + fx_loss
+    fin_income = fx_income + var_income
+    fin_loss = fin_expense + fx_loss + var_loss
 
     gh_profit = op_profit + fin_income - fin_loss              # 220
     extraordinary = -g["extraordinary"]                        # 230 (убыток -> минус)
