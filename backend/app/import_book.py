@@ -90,6 +90,14 @@ LEDGER_SHEETS = {
 }
 SKIP_NAMES = {"всего", "в том числе", "всего по", "всего по дробилки", "итого"}
 
+# «Азмур» в «Приход запчастей» — это не отдельный объект, а место приёмки:
+# запчасть приходуется на «Азмур», а расходуется (лист «Расход сырья и
+# запчастей») уже на «Махстон». Поэтому в книге одна и та же деталь на конец
+# месяца висит излишком на «Азмуре» и точно таким же минусом на «Махстоне» —
+# проверено на всех 71 позициях, совпадает без остатка. Приравниваем при
+# чтении, чтобы приход и расход считались одним и тем же складом.
+DIVISION_ALIASES = {"Азмур": "Махстон"}
+
 
 def num(v) -> float:
     return float(v) if isinstance(v, (int, float)) else 0.0
@@ -326,9 +334,11 @@ class Book:
                 if not code:
                     continue
                 name = f"Без наименования (код {code}, стр. {i})"
+            division = txt(r[8])
+            division = DIVISION_ALIASES.get(division, division)
             out.append({
                 "date": d, "org_inn": txt(r[3]), "org_name": txt(r[4]),
-                "code": code, "name": name, "division": txt(r[8]),
+                "code": code, "name": name, "division": division,
                 "payment_type": txt(r[9]), "vat": txt(r[10]).startswith("с учетом"),
                 "qty": qty, "price": num(r[12]), "kind": kind,
             })
