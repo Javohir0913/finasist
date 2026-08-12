@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import api, { apiError } from "../api/client";
 import ImportModal from "../components/ImportModal";
 import { Badge, Card, EmptyState, Field, Modal, MoneyInput, SearchSelect, SectionTitle, Spinner } from "../components/ui";
@@ -119,6 +119,15 @@ export default function Transactions() {
   const inUsd = sum(f.rows.filter((t) => t.direction === "income"), "amount_usd");
   const outUsd = sum(f.rows.filter((t) => t.direction === "expense"), "amount_usd");
 
+  // рендерить 1000+ строк разом — тормозит; показываем страницами, а «Итого»
+  // и «показано X из Y» в FilterBar всё равно считаются по всей отфильтрованной выборке
+  const [pageSize, setPageSize] = useState(50);
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [f.q, JSON.stringify(f.picked), listUrl, pageSize]);
+  const totalPages = Math.max(1, Math.ceil(f.rows.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pageRows = f.rows.slice((safePage - 1) * pageSize, safePage * pageSize);
+
   const addRateForDate = async () => {
     setSavingRate(true);
     try {
@@ -217,7 +226,7 @@ export default function Transactions() {
                 <th className="th text-right">Сумма</th><th className="th text-right">USD</th><th className="th"></th>
               </tr></thead>
               <tbody>
-                {f.rows.map((t) => (
+                {pageRows.map((t) => (
                   <tr key={t.id} className="hover:bg-veil/[0.02]">
                     <td className="td whitespace-nowrap">{fmtDate(t.doc_date)}</td>
                     <td className="td"><Badge tone={t.direction === "income" ? "emerald" : "rose"}>{t.direction === "income" ? "Приход" : "Расход"}</Badge></td>
@@ -253,6 +262,25 @@ export default function Transactions() {
           </div>
         )}
       </Card>
+
+      {!loading && f.rows.length > 25 && (
+        <div className="flex flex-wrap items-center gap-2 mt-3">
+          <span className="text-xs text-slate-500">На странице:</span>
+          <select className="input !py-1.5 !w-auto" value={pageSize}
+            onChange={(e) => setPageSize(Number(e.target.value))}>
+            {[25, 50, 100, 200, 500].map((n) => <option key={n} value={n}>{n}</option>)}
+          </select>
+          <div className="flex items-center gap-2 ml-auto">
+            <button className="btn-ghost !py-1.5 !px-3" disabled={safePage <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}>← Назад</button>
+            <span className="text-xs text-slate-500 whitespace-nowrap">
+              стр. {safePage} из {totalPages} ({f.rows.length} операций)
+            </span>
+            <button className="btn-ghost !py-1.5 !px-3" disabled={safePage >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Вперёд →</button>
+          </div>
+        </div>
+      )}
 
       <Modal open={open} onClose={() => setOpen(false)} title={editing ? `Операция №${editing.id}` : "Новая операция"} width="max-w-2xl">
         {err && <div className="mb-4 rounded-xl bg-rose-500/12 border border-rose-500/25 text-rose-300 text-sm px-3.5 py-2.5">{err}</div>}
