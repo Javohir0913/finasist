@@ -347,7 +347,11 @@ class Book:
             if not name:
                 if not code:
                     continue
-                name = f"Без наименования (код {code}, стр. {i})"
+                # по коду, БЕЗ номера строки: тот же код без названия
+                # встречается и в «Расход сырья и запчастей» (спишется же не
+                # само по себе) — по номеру строки они не совпали бы, и
+                # обе стороны завели бы себе разные материалы на один товар
+                name = f"Без наименования (код {code})"
             division = txt(r[8])
             division = DIVISION_ALIASES.get(division, division)
             out.append({
@@ -369,15 +373,24 @@ class Book:
         """
         out = []
         for _i, r in self.rows("Расход сырья и запчастей", 6, None, 17):
-            raw_name, spare_name = txt(r[2]), txt(r[6])
-            if raw_name:
+            raw_code, raw_name = txt(r[1]), txt(r[2])
+            spare_code, spare_name = txt(r[5]), txt(r[6])
+            if raw_code or raw_name:
                 name, kind, qty = raw_name, "raw", num(r[4])
-            elif spare_name:
+                code = raw_code
+            elif spare_code or spare_name:
                 name, kind, qty = spare_name, "spare", num(r[12])
+                code = spare_code
             else:
                 continue
             if not qty:
                 continue
+            if not name:
+                # тот же товар без названия, что и в «Приход» — код должен
+                # совпасть с тем, что заведён там (см. receipts())
+                if not code:
+                    continue
+                name = f"Без наименования (код {code})"
             # код расходов в этом листе — с суффиксом объекта («2025_М»),
             # как и в «КАССА»; отделяем его тем же способом (там же и
             # division — свой отдельный столбец, суффикс дублирует его)
