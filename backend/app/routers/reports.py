@@ -4,7 +4,7 @@ import calendar
 from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import extract, func, select
+from sqlalchemy import extract, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
@@ -770,15 +770,18 @@ async def pnl_by_divisions(
 
 # ================= Налоги (авто-расчёт, как в Excel) =================
 NDS_RATE = 0.12
-# коды оплаты по видам налогов (для «оплачено» из операций)
+# коды оплаты по видам налогов (для «оплачено» из операций). В листе «БАНК»
+# зарплатные налоги идут отдельной колонкой H «код cash flow» (2013/2014/2015),
+# а не «код расходов» G (94xxx) — платёж проверяем по ОБОИМ полям, иначе
+# оплата НДФЛ/ЕСП/ИНПС банковским переводом не находится (см. paid_of).
 TAX_PAY_CODES = {
     "НДС": ["94321"],
-    "Налог на прибыль": ["94319"],
+    "Налог на доходы (прибыль)": ["94319"],
     "НДФЛ": ["2013", "94103", "94203"],
     "ЕСП": ["2014", "94104", "94204"],
     "ИНПС": ["2015", "94105", "94205"],
     "Земельный налог": ["94322"],
-    "Прочие налоги": ["94323"],
+    "Другие налоги": ["94323"],
 }
 
 
@@ -838,13 +841,21 @@ async def _taxes_core(db: AsyncSession, year, month, on: date | None = None):
         "ИНПС": inps_a,
     }
 
-    # оплачено — из операций по кодам оплаты
+    # оплачено — из операций по кодам оплаты. Сопоставление по подстроке —
+    # как у accrued_map: реальное имя налога в карточке («Социальный налог
+    # (ЕСП)») не совпадает буквально с ключом словаря («ЕСП»).
     async def paid_of(name: str) -> float:
-        codes = TAX_PAY_CODES.get(name, [])
+        codes: list[str] = []
+        low = name.lower()
+        for key, val in TAX_PAY_CODES.items():
+            if key.lower() in low:
+                codes = val
+                break
         if not codes:
             return 0.0
         stmt = select(func.coalesce(func.sum(Transaction.amount_uzs), 0)).where(
-            Transaction.direction == "expense", Transaction.expense_code.in_(codes)
+            Transaction.direction == "expense",
+            or_(Transaction.expense_code.in_(codes), Transaction.cashflow_code.in_(codes)),
         )
         return await s(stmt, Transaction.doc_date)
 
