@@ -106,6 +106,18 @@ SKIP_NAMES = {"всего", "в том числе", "всего по", "всег
 # чтении, чтобы приход и расход считались одним и тем же складом.
 DIVISION_ALIASES = {"Азмур": "Махстон"}
 
+# Точечные расхождения книги: «Объект»/касса в строке — один, а суффикс кода
+# расходов — другой (книжная «РАСХОДЫ <объект>» считает по коду, не по
+# «Объекту»). Оба случая найдены сверкой себестоимости с книгой день в день:
+#   КАССА стр.800 — регистратор «Турк», код «2032_М» (расход «Курс разница»);
+#   Полученные УСЛУГИ стр.61 — «Объект»=Турк, код «2035_М» (KS PROFIT SOLAR).
+# Не общее правило (регистратор/«Объект» в остальных ~660 строках верны) —
+# точечная поправка только этих двух строк, определяемых номером строки листа.
+ROW_DIVISION_OVERRIDE = {
+    ("КАССА", 800): "Махстон",
+    ("Полученные УСЛУГИ", 61): "Махстон",
+}
+
 # суффикс кода («2012_М») -> подразделение. В «Зарплата  » книга сама
 # считает «2010» подразделения по суффиксу кода, а не по колонке «Объект» —
 # строка АУП с кодом «2012_М» входит в итог именно Махстона (сверено с
@@ -291,6 +303,7 @@ class Book:
                 "cashflow_code": txt(r[8]),        # I — код платежа
                 "purpose": txt(r[9]),              # J — назначение
                 "description": txt(r[5]),          # F — наименование платежа
+                "division_override": ROW_DIVISION_OVERRIDE.get(("КАССА", i)),
             })
         return out
 
@@ -524,18 +537,19 @@ class Book:
         K сумма без НДС (сум), M сумма НДС (сум).
         """
         out = []
-        for _i, r in self.rows("Полученные УСЛУГИ", 6, None, 14):
+        for i, r in self.rows("Полученные УСЛУГИ", 6, None, 14):
             d = as_date(r[4])
             net, vat_amt = num(r[10]), num(r[12])
             if not d or (not net and not vat_amt):
                 continue
+            division = ROW_DIVISION_OVERRIDE.get(("Полученные УСЛУГИ", i)) or txt(r[9])
             out.append({
                 "date": d, "org_inn": txt(r[1]), "org_name": txt(r[2]),
                 # код платежа — с суффиксом объекта («2027_М»), как в «КАССА»
                 # и «Расход сырья и запчастей»; отделяем тем же способом
                 "service_type": txt(r[5]), "expense_code": txt(r[6]).split("_")[0],
                 "purpose": txt(r[7]), "vat": txt(r[8]).startswith("с учетом"),
-                "division": txt(r[9]), "net": net, "vat_amount": vat_amt,
+                "division": division, "net": net, "vat_amount": vat_amt,
             })
         return out
 
@@ -801,7 +815,7 @@ async def run(path: str, do_wipe: bool, rates_path: str | None = None):
                 organization_id=org.id if org else None,
                 cash_register_id=till.id if till else None,
                 cash_register=t["register"][:80],
-                division=(till.division if till else "")[:80],
+                division=(t["division_override"] or (till.division if till else ""))[:80],
                 expense_code=t["expense_code"], cashflow_code=t["cashflow_code"],
                 purpose=t["purpose"][:200], category=t["purpose"][:160],
                 description=t["description"],
