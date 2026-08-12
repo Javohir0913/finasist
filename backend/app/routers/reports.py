@@ -38,7 +38,6 @@ from ..models import (
     MaterialStock,
     Organization,
     PayrollEntry,
-    PeriodSetting,
     Product,
     ProductStock,
     Production,
@@ -597,6 +596,59 @@ async def counterparties(
     return data
 
 
+async def _material_variance(
+    db: AsyncSession, division: str | None, year: int | None, month: int | None,
+    material_code: str = "1",
+) -> tuple[float, float]:
+    """Разница план/факт по главному сырью (в книге — лист «С-сть ГП», цена сырья
+    берётся из «Cклад сырья оборот и запчасти», колонка «Приход»):
+
+        (выпуск ГП за период на объекте × средняя цена ПРИХОДА сырья за период)
+          − фактический расход этого сырья на объекте за период
+
+    Именно цена прихода ЗА ПЕРИОД, а не текущая средняя по складу (та уже
+    смешана с остатком на начало и датой не ограничена) — иначе не сходится
+    с книгой. Считается заново из первичных документов при каждом запросе
+    (выпуск, приход, расход) — нигде не хранится и не «протухает», если
+    документы за период потом поменяют. По компании в целом — сумма по всем
+    объектам, плюсы и минусы отдельно, не сальдируя (как в листе «ОФР USD»).
+    """
+    mat_id = await db.scalar(
+        select(Material.id).where(Material.code == material_code, Material.kind == "raw")
+    )
+    if not mat_id:
+        return 0.0, 0.0
+
+    divisions = [division] if division else [
+        d for (d,) in (await db.execute(select(Division.name).order_by(Division.id))).all()
+    ]
+
+    income = loss = 0.0
+    for div in divisions:
+        qstmt = select(func.coalesce(func.sum(Production.qty), 0)).where(Production.division == div)
+        qty = float(await db.scalar(_period(qstmt, year, month, Production.doc_date)) or 0)
+
+        rstmt = select(
+            func.coalesce(func.sum(MaterialReceipt.qty), 0),
+            func.coalesce(func.sum(MaterialReceipt.amount_uzs), 0),
+        ).where(MaterialReceipt.material_id == mat_id, MaterialReceipt.division == div)
+        r_qty, r_amt = (await db.execute(_period(rstmt, year, month, MaterialReceipt.doc_date))).one()
+        r_qty, r_amt = float(r_qty or 0), float(r_amt or 0)
+        price = r_amt / r_qty if r_qty else 0.0
+
+        astmt = select(func.coalesce(func.sum(MaterialIssue.cost_uzs), 0)).where(
+            MaterialIssue.material_id == mat_id, MaterialIssue.division == div
+        )
+        actual = float(await db.scalar(_period(astmt, year, month, MaterialIssue.doc_date)) or 0)
+
+        v = qty * price - actual
+        if v >= 0:
+            income += v
+        else:
+            loss += -v
+    return round(income, 2), round(loss, 2)
+
+
 # ================= ОФР (Форма №2) =================
 @router.get("/pnl")
 async def pnl(
@@ -648,22 +700,9 @@ async def pnl(
         fx_income = round(fx["total_income"] * rate, 2)        # отчёт в USD -> сумы
         fx_loss = round(fx["total_loss"] * rate, 2)
 
-    # разница план/факт по сырью (лист «С-сть ГП» книги, см. import_book.py
-    # material_variance) — тоже ложится в 110/160/170. По компании в целом
-    # берём сумму ВСЕХ подразделений, плюсы и минусы отдельно, не сальдируя —
-    # как в листе «ОФР USD».
-    var_income = var_loss = 0.0
-    if year and month:
-        vstmt = select(PeriodSetting.value).where(
-            PeriodSetting.period == f"{year}-{int(month):02d}",
-            PeriodSetting.key == f"fin_variance_{division}" if division else PeriodSetting.key.like("fin_variance_%"),
-        )
-        for (val,) in (await db.execute(vstmt)).all():
-            v = float(val or 0)
-            if v >= 0:
-                var_income += v
-            else:
-                var_loss += -v
+    # разница план/факт по сырью (как книжный «С-сть ГП», см. _material_variance) —
+    # тоже ложится в 110/160/170; считается заново из документов, ничего не хранит
+    var_income, var_loss = await _material_variance(db, division, year, month)
 
     fin_expense = g["financial"]
     fin_income = fx_income + var_income
