@@ -109,7 +109,12 @@ async def cost_parts(
         Employee, Employee.id == PayrollEntry.employee_id
     ).where(Employee.expense_code.in_(prod_codes) if prod_codes else False)
     if division:
-        pay = pay.where(Employee.division == division)
+        # АУП — административный персонал завода «Махстон» (в ведомости
+        # «Дт Кт З.п» у него своя строка «Ойлик(АУП)», но в себестоимость
+        # начисление входит кодом «2012_М» — сверено с «РАСХОДЫ Махстон»
+        # построчно), поэтому в затраты Махстона считаем и его сотрудников
+        divs = [division, "АУП"] if division == "Махстон" else [division]
+        pay = pay.where(Employee.division.in_(divs))
     if year and month:
         pay = pay.where(PayrollEntry.period == f"{year}-{int(month):02d}")
     payroll = float(await db.scalar(pay) or 0)
