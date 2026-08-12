@@ -110,7 +110,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <KpiCard label="Поступления" value={money(kpi("income"))} tone="emerald" delta="Приход денежных средств" icon={<Arrow up />} />
         <KpiCard label="Расходы" value={money(kpi("expense"))} tone="rose" delta="Расход денежных средств" icon={<Arrow />} />
-        <KpiCard label="Чистая прибыль" value={money(kpi("profit"))} tone="accent" delta={`Маржа ${k.margin}%`} icon={<Dollar />} />
+        <KpiCard label="Денежный поток" value={money(kpi("profit"))} tone="accent" delta={`Приход − расход, ${k.margin}%`} icon={<Dollar />} />
         <KpiCard label="Дебиторка" value={money(kpi("receivable"))} tone="violet" delta={`Кредиторка ${money(Math.abs(kpi("payable")))}`} icon={<Scale />} />
       </div>
 
