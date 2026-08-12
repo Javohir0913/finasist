@@ -93,6 +93,8 @@ export default function Transactions() {
       ? salaryOrg
       : null;
 
+  const expCodeName = (code: string) => expCodes?.find((c) => c.code === code)?.name || "";
+  const cfCodeName = (code: string) => cfCodes?.find((c) => c.code === code)?.name || "";
   const f = useFilter<Tx>(
     data,
     (t) => text(t.doc_date, t.category, t.description, t.division, t.expense_code,
@@ -102,6 +104,8 @@ export default function Transactions() {
       { key: "division", label: "Объект", of: (t) => t.division || "" },
       { key: "org", label: "Контрагент", of: (t) => t.organization?.name || "" },
       { key: "cur", label: "Валюта", of: (t) => t.currency || "" },
+      { key: "expcode", label: "Статья расхода (код)", of: (t) => t.expense_code ? `${t.expense_code} · ${expCodeName(t.expense_code)}` : "" },
+      { key: "cfcode", label: "Код Cash Flow (ДДС)", of: (t) => t.cashflow_code ? `${t.cashflow_code} · ${cfCodeName(t.cashflow_code)}` : "" },
     ]
   );
   const inUsd = sum(f.rows.filter((t) => t.direction === "income"), "amount_usd");
