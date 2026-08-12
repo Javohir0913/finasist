@@ -98,6 +98,12 @@ SKIP_NAMES = {"всего", "в том числе", "всего по", "всег
 # чтении, чтобы приход и расход считались одним и тем же складом.
 DIVISION_ALIASES = {"Азмур": "Махстон"}
 
+# суффикс кода («2012_М») -> подразделение. В «Зарплата  » книга сама
+# считает «2010» подразделения по суффиксу кода, а не по колонке «Объект» —
+# строка АУП с кодом «2012_М» входит в итог именно Махстона (сверено с
+# «РАСХОДЫ Махстон»: 453,9 млн = 397,5 млн трёх «Махстон»-строк + 56,4 млн АУП).
+CODE_SUFFIX_DIVISION = {"М": "Махстон", "Т": "Турк", "Ж": "Жби"}
+
 
 def num(v) -> float:
     return float(v) if isinstance(v, (int, float)) else 0.0
@@ -364,8 +370,11 @@ class Book:
                 continue
             if not qty:
                 continue
+            # код расходов в этом листе — с суффиксом объекта («2025_М»),
+            # как и в «КАССА»; отделяем его тем же способом (там же и
+            # division — свой отдельный столбец, суффикс дублирует его)
             out.append({"name": name, "kind": kind, "division": txt(r[9]),
-                        "expense_code": txt(r[8]), "qty": qty})
+                        "expense_code": txt(r[8]).split("_")[0], "qty": qty})
         return out
 
     def sales(self) -> list[dict]:
@@ -418,6 +427,26 @@ class Book:
                 start, accrued, paid = end, 0.0, 0.0
             out.append({"name": name, "debt_start": start, "accrued": accrued,
                         "paid": paid, "debt_end": end})
+        return out
+
+    def payroll_totals(self) -> list[dict]:
+        """Лист «Зарплата  » (с двумя пробелами в имени — НЕ путать с пустым
+        листом «Зарплата»): свод начисленной зарплаты по объекту/коду, без
+        разбивки по сотрудникам. Отсюда «Расходы <объект>» берёт строку 2012
+        «Зарплата производственного персонала» (D8 листа книги) — без нашего
+        импорта себестоимость выпуска выходит в разы ниже книжной.
+
+        D Объект, E Код платежа, I Начислено (Фин).
+        """
+        out = []
+        for _i, r in self.rows("Зарплата  ", 3, 40, 10):
+            division, code, amount = txt(r[3]), txt(r[4]), num(r[8])
+            if not division or not amount:
+                continue
+            suffix = code.rsplit("_", 1)[-1] if "_" in code else ""
+            division = CODE_SUFFIX_DIVISION.get(suffix, division)
+            out.append({"division": division, "expense_code": code.split("_")[0],
+                        "amount": round(amount, 2)})
         return out
 
     # ---------- справочники книги ----------
@@ -481,7 +510,9 @@ class Book:
                 continue
             out.append({
                 "date": d, "org_inn": txt(r[1]), "org_name": txt(r[2]),
-                "service_type": txt(r[5]), "expense_code": txt(r[6]),
+                # код платежа — с суффиксом объекта («2027_М»), как в «КАССА»
+                # и «Расход сырья и запчастей»; отделяем тем же способом
+                "service_type": txt(r[5]), "expense_code": txt(r[6]).split("_")[0],
                 "purpose": txt(r[7]), "vat": txt(r[8]).startswith("с учетом"),
                 "division": txt(r[9]), "net": net, "vat_amount": vat_amt,
             })
@@ -908,6 +939,33 @@ async def run(path: str, do_wipe: bool, rates_path: str | None = None):
                        accrued_date=TAX_DATE, debt_start=t["debt_start"],
                        accrued=t["accrued"], paid=t["paid"], debt_end=t["debt_end"]))
         await db.flush()
+
+        # --- зарплата: свод по объекту/коду (лист «Зарплата  ») ---
+        # без сотрудников — один «сводный» сотрудник на (объект, код), чтобы
+        # попасть в себестоимость выпуска (app/production.py cost_parts)
+        # тем же путём, что и книга: Employee.division + Employee.expense_code.
+        period = f"{BOOK_YEAR}-{BOOK_MONTH:02d}"
+        n_payroll = 0
+        for row in book.payroll_totals():
+            emp = await db.scalar(
+                select(Employee).where(
+                    Employee.division == row["division"],
+                    Employee.expense_code == row["expense_code"],
+                    Employee.full_name == "Начислено (свод, книга)",
+                )
+            )
+            if emp is None:
+                emp = Employee(full_name="Начислено (свод, книга)", division=row["division"],
+                               expense_code=row["expense_code"], position="—", is_active=False)
+                db.add(emp)
+                await db.flush()
+            db.add(PayrollEntry(employee_id=emp.id, period=period, pay_mode="cash",
+                                oklad=row["amount"], gross=row["amount"], net=row["amount"],
+                                total_cost=row["amount"]))
+            n_payroll += 1
+        await db.flush()
+        if n_payroll:
+            print(f"· зарплата (свод из книги): {n_payroll} строк")
 
         # --- настройки: ОС и уставный капитал ---
         fa, cap = book.fixed_assets(), book.charter_capital()
