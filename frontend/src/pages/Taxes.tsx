@@ -98,7 +98,13 @@ export default function Taxes() {
         <div className="grid grid-cols-2 gap-4">
           <div className="col-span-2"><Field label="Наименование налога"><input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} disabled={!!editing} /></Field></div>
           <Field label="Долг на начало"><MoneyInput value={form.debt_start} onChange={(v) => setForm({ ...form, debt_start: v })} /></Field>
-          <Field label="Начислено (для ручных налогов)"><MoneyInput value={form.accrued} onChange={(v) => setForm({ ...form, accrued: v })} /></Field>
+          {manual ? (
+            <Field label="Начислено"><MoneyInput value={form.accrued} onChange={(v) => setForm({ ...form, accrued: v })} /></Field>
+          ) : (
+            <Field label="Начислено">
+              <input className="input opacity-60" disabled value="считается автоматически" />
+            </Field>
+          )}
           {auto && (
             <div className="col-span-2 flex items-center gap-2">
               <input id="taxoverride" type="checkbox" checked={!!form.manual_override}
