@@ -864,20 +864,33 @@ async def _taxes_core(db: AsyncSession, year, month, on: date | None = None):
             (p_start is None or (t.accrued_date and t.accrued_date >= p_start))
             and (p_end is None or (t.accrued_date and t.accrued_date <= p_end))
         )
+        # Ручная перебивка авто-налога: только в отчёте ЗА МЕСЯЦ (p_start не
+        # None — «на дату» баланса override не трогаем, иначе он «прилипнет»
+        # ко всем будущим периодам вместо авто) и только пока дата начисления
+        # попадает в запрошенный месяц — со следующим месяцем автоматически
+        # снова считается авто, руками ничего выключать не нужно.
+        override_active = bool(t.manual_override) and p_start is not None and manual_in_period
         # авто-начисление уже собрано по датам первичных документов
-        accrued = acc_auto if acc_auto is not None else (
-            float(t.accrued or 0) if manual_in_period else 0.0
-        )
-        paid = await paid_of(t.name)          # по дате платёжной операции
-        if paid == 0 and manual_in_period:
-            paid = float(t.paid or 0)         # запасной вариант — ручное
+        if override_active:
+            accrued = float(t.accrued or 0)
+        else:
+            accrued = acc_auto if acc_auto is not None else (
+                float(t.accrued or 0) if manual_in_period else 0.0
+            )
+        if override_active:
+            paid = float(t.paid or 0)
+        else:
+            paid = await paid_of(t.name)          # по дате платёжной операции
+            if paid == 0 and manual_in_period:
+                paid = float(t.paid or 0)         # запасной вариант — ручное
         # долг на начало — по той же дате: до неё его ещё не было
         start = float(t.debt_start or 0) if opening_active(t.accrued_date, p_end) else 0.0
         end = round(start + accrued - paid, 2)
         rows.append({
             "id": t.id, "name": t.name, "debt_start": start,
             "accrued_date": t.accrued_date.isoformat() if t.accrued_date else None,
-            "accrued": round(accrued, 2), "auto": acc_auto is not None,
+            "accrued": round(accrued, 2), "auto": acc_auto is not None and not override_active,
+            "manual_override": bool(t.manual_override), "override_active": override_active,
             "paid": round(paid, 2), "debt_end": max(end, 0), "overpay": max(-end, 0),
         })
         tot["start"] += start; tot["accrued"] += accrued; tot["paid"] += paid; tot["end"] += max(end, 0)

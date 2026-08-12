@@ -629,6 +629,7 @@ class TaxBase(BaseModel):
     accrued: float = 0
     paid: float = 0
     debt_end: float = 0
+    manual_override: bool = False
 
 
 class TaxUpdate(BaseModel):
@@ -638,6 +639,7 @@ class TaxUpdate(BaseModel):
     debt_start: float | None = None
     accrued: float | None = None
     paid: float | None = None
+    manual_override: bool | None = None
 
 
 class TaxOut(ORMModel, TaxBase):

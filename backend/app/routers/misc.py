@@ -92,8 +92,12 @@ def _check_tax_date(t: Tax) -> None:
     """Ручному налогу нужна дата начисления — см. TAX_DATE_REQUIRED.
 
     Авто-налоги дату не требуют: их начисление приходит из первичных
-    документов и уже привязано к их датам.
+    документов и уже привязано к их датам. Исключение — ручная перебивка
+    (manual_override): без даты отчёт не сможет понять, к какому месяцу
+    относится перебивка, и она никогда не сработает.
     """
+    if t.manual_override and not t.accrued_date:
+        raise HTTPException(400, detail=TAX_DATE_REQUIRED)
     if is_auto_tax(t.name):
         return
     if (float(t.accrued or 0) or float(t.debt_start or 0)) and not t.accrued_date:

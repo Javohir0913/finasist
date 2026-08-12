@@ -328,6 +328,12 @@ class Tax(Base):
     accrued: Mapped[float] = mapped_column(Numeric(18, 2), default=0)
     paid: Mapped[float] = mapped_column(Numeric(18, 2), default=0)
     debt_end: Mapped[float] = mapped_column(Numeric(18, 2), default=0)
+    # Для авто-налогов (НДС/НДФЛ/ЕСП/ИНПС): принудительно использовать ручные
+    # accrued/paid ЭТОГО периода вместо авто-расчёта из документов — если
+    # автоподсчёт разошёлся с реальной бухгалтерией. Действует только пока
+    # accrued_date попадает в запрошенный месяц отчёта — со следующим месяцем
+    # автоматически снова считается авто (см. reports._taxes_core).
+    manual_override: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class Loan(Base):

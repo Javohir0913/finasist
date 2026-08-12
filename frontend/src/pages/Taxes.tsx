@@ -6,7 +6,7 @@ import { LockedMark, LockedNotice, useLock } from "../lib/lock";
 import { useApi } from "../lib/useApi";
 import { useAuth } from "../store/auth";
 
-interface TRow { id: number; name: string; debt_start: number; accrued: number; auto: boolean; paid: number; debt_end: number; overpay: number; accrued_date: string | null }
+interface TRow { id: number; name: string; debt_start: number; accrued: number; auto: boolean; paid: number; debt_end: number; overpay: number; accrued_date: string | null; manual_override: boolean; override_active: boolean }
 
 // НДС и зарплатные налоги считаются из документов — дата берётся оттуда;
 // остальные вводятся руками, и без даты попадали бы в каждый период
@@ -18,11 +18,12 @@ export default function Taxes() {
   const { isLocked, isPeriodLocked, minOpenDate, hint } = useLock();
   const { data, loading, reload } = useApi<{ rows: TRow[]; totals: any }>("/reports/taxes");
   const [open, setOpen] = useState(false); const [editing, setEditing] = useState<TRow | null>(null);
-  const empty = { name: "", period: "", accrued_date: "", debt_start: 0, accrued: 0, paid: 0 };
+  const empty = { name: "", period: "", accrued_date: "", debt_start: 0, accrued: 0, paid: 0, manual_override: false };
   const [form, setForm] = useState<any>(empty); const [err, setErr] = useState(""); const [saving, setSaving] = useState(false);
-  const manual = !isAuto(form.name);
+  const auto = isAuto(form.name);
+  const manual = !auto || form.manual_override;
   const dateMissing = manual
-    && !!(Number(form.accrued || 0) || Number(form.debt_start || 0))
+    && (!auto ? !!(Number(form.accrued || 0) || Number(form.debt_start || 0)) : !!form.manual_override)
     && !form.accrued_date;
 
   const save = async () => {
@@ -52,18 +53,20 @@ export default function Taxes() {
                   <td className="td text-right">{fmtNum(t.debt_start)}</td>
                   <td className="td text-right text-amber-300">
                     {fmtNum(t.accrued)}{" "}
-                    {t.auto
-                      ? <Badge tone="emerald">авто</Badge>
-                      : t.accrued_date
-                        ? <span className="text-xs text-slate-500">{fmtDate(t.accrued_date)}</span>
-                        : <span className="text-xs text-amber-300">без даты</span>}
+                    {t.override_active
+                      ? <Badge tone="amber">qo'lda (bu oy)</Badge>
+                      : t.auto
+                        ? <Badge tone="emerald">авто</Badge>
+                        : t.accrued_date
+                          ? <span className="text-xs text-slate-500">{fmtDate(t.accrued_date)}</span>
+                          : <span className="text-xs text-amber-300">без даты</span>}
                   </td>
                   <td className="td text-right text-emerald-300">{fmtNum(t.paid)}</td>
                   <td className="td text-right font-semibold text-ink">{fmtNum(t.debt_end)}</td>
                   <td className="td text-right text-slate-400">{t.overpay ? fmtNum(t.overpay) : "—"}</td>
                   <td className="td text-right whitespace-nowrap">
                     {isLocked(t.accrued_date) ? <LockedMark title={hint} /> : <>
-                      {can("taxes:edit") && <button onClick={() => { setEditing(t); setForm({ name: t.name, period: "", accrued_date: t.accrued_date || "", debt_start: t.debt_start, accrued: t.accrued, paid: t.paid }); setErr(""); setOpen(true); }} className="text-slate-500 hover:text-accent-soft mr-3">✎</button>}
+                      {can("taxes:edit") && <button onClick={() => { setEditing(t); setForm({ name: t.name, period: "", accrued_date: t.accrued_date || "", debt_start: t.debt_start, accrued: t.accrued, paid: t.paid, manual_override: t.manual_override }); setErr(""); setOpen(true); }} className="text-slate-500 hover:text-accent-soft mr-3">✎</button>}
                       {can("taxes:delete") && <button onClick={() => remove(t.id)} className="text-slate-500 hover:text-rose-300">✕</button>}
                     </>}
                   </td>
@@ -96,26 +99,41 @@ export default function Taxes() {
           <div className="col-span-2"><Field label="Наименование налога"><input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} disabled={!!editing} /></Field></div>
           <Field label="Долг на начало"><MoneyInput value={form.debt_start} onChange={(v) => setForm({ ...form, debt_start: v })} /></Field>
           <Field label="Начислено (для ручных налогов)"><MoneyInput value={form.accrued} onChange={(v) => setForm({ ...form, accrued: v })} /></Field>
-          {manual && (
-            <div className="col-span-2">
-              <Field label="Дата начисления *">
-                <input type="date" min={minOpenDate || undefined} className="input" value={form.accrued_date || ""}
-                  onChange={(e) => setForm({ ...form, accrued_date: e.target.value })} />
-                {dateMissing ? (
-                  <p className="mt-1 text-xs text-amber-300">
-                    Обязательно: без даты налог попадёт в каждый период отчёта
-                  </p>
-                ) : (
-                  <p className="mt-1 text-xs text-slate-500">
-                    сумма попадёт только в тот период, куда входит эта дата
-                  </p>
-                )}
-              </Field>
+          {auto && (
+            <div className="col-span-2 flex items-center gap-2">
+              <input id="taxoverride" type="checkbox" checked={!!form.manual_override}
+                onChange={(e) => setForm({ ...form, manual_override: e.target.checked })}
+                className="h-4 w-4 accent-accent" />
+              <label htmlFor="taxoverride" className="text-sm text-slate-300">
+                Qo'lda kiritish (bu oy uchun avto-hisobni bekor qilish)
+              </label>
             </div>
+          )}
+          {manual && (
+            <>
+              <Field label="Оплачено"><MoneyInput value={form.paid || 0} onChange={(v) => setForm({ ...form, paid: v })} /></Field>
+              <div className="col-span-2">
+                <Field label="Дата начисления *">
+                  <input type="date" min={minOpenDate || undefined} className="input" value={form.accrued_date || ""}
+                    onChange={(e) => setForm({ ...form, accrued_date: e.target.value })} />
+                  {dateMissing ? (
+                    <p className="mt-1 text-xs text-amber-300">
+                      Обязательно: без даты налог попадёт в каждый период отчёта
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-xs text-slate-500">
+                      сумма попадёт только в тот период, куда входит эта дата
+                    </p>
+                  )}
+                </Field>
+              </div>
+            </>
           )}
         </div>
         <p className="text-xs text-slate-500 mt-3">
-          {manual
+          {auto && form.manual_override
+            ? "Перебивка авто-расчёта: начислено/оплачено этого месяца берутся отсюда, а не из документов. Со следующего месяца (другая дата начисления) снова считается авто — ничего выключать не нужно."
+            : manual
             ? "Ручной налог: и «начислено», и «долг на начало» учитываются по указанной дате."
             : "Этот налог считается автоматически — начисление и его дата берутся из первичных документов (продажи, услуги, приход ТМЦ, ведомость зарплаты). Дата вручную не нужна."}
         </p>
