@@ -36,8 +36,16 @@ export default function Transactions() {
   const { isLocked, minOpenDate, hint } = useLock();
   const [filter, setFilter] = useState("");
   const { qs: periodQs } = usePeriod();
-  const listUrl = withPeriod("/transactions", periodQs, filter ? `direction=${filter}` : "");
+  // лимит по умолчанию у бэка — 200 (последние по дате); реестр за период
+  // может быть больше, поэтому явно просим всё — иначе часть операций
+  // (обычно самые ранние в периоде) молча пропадала бы из таблицы и фильтров.
+  const TX_LIMIT = 20000;
+  const listUrl = withPeriod(
+    "/transactions", periodQs,
+    [filter ? `direction=${filter}` : "", `limit=${TX_LIMIT}`].filter(Boolean).join("&")
+  );
   const { data, loading, reload } = useApi<Tx[]>(listUrl, [listUrl]);
+  const maybeTruncated = (data?.length || 0) >= TX_LIMIT;
   const { data: orgs } = useApi<Org[]>("/organizations");
   const { data: expCodes } = useApi<Code[]>("/expense-codes");
   const { data: cfCodes } = useApi<Code[]>("/cashflow-codes");
@@ -190,6 +198,12 @@ export default function Transactions() {
         ))}
       </div>
 
+      {maybeTruncated && (
+        <div className="mb-3 rounded-xl bg-amber-500/12 border border-amber-500/25 text-amber-300 text-sm px-3.5 py-2.5">
+          Операций за выбранный период очень много (≥{TX_LIMIT.toLocaleString("ru")}) — часть могла не загрузиться.
+          Сузьте период (конкретный месяц вместо «весь год»), чтобы увидеть все.
+        </div>
+      )}
       {!loading && !!data?.length && <FilterBar f={f} placeholder="Дата, статья, контрагент, сумма…" />}
 
       <Card className="!p-0 overflow-hidden">

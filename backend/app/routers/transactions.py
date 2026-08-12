@@ -79,7 +79,7 @@ async def list_tx(
     organization_id: int | None = None,
     year: int | None = None,
     month: int | None = None,
-    limit: int = Query(200, le=1000),
+    limit: int = Query(200, le=20000),
     current: User = Depends(require("transactions:view")),
     db: AsyncSession = Depends(get_db),
 ):
