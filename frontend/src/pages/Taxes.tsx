@@ -3,6 +3,7 @@ import api, { apiError } from "../api/client";
 import { Badge, Card, EmptyState, Field, Modal, MoneyInput, SectionTitle, Spinner } from "../components/ui";
 import { fmtDate, fmtNum } from "../lib/format";
 import { LockedMark, LockedNotice, useLock } from "../lib/lock";
+import { PeriodPicker, usePeriod, withPeriod } from "../lib/period";
 import { useApi } from "../lib/useApi";
 import { useAuth } from "../store/auth";
 
@@ -16,7 +17,8 @@ const isAuto = (name: string) => AUTO.some((k) => (name || "").toLowerCase().inc
 export default function Taxes() {
   const { can } = useAuth();
   const { isLocked, isPeriodLocked, minOpenDate, hint } = useLock();
-  const { data, loading, reload } = useApi<{ rows: TRow[]; totals: any }>("/reports/taxes");
+  const { qs } = usePeriod();
+  const { data, loading, reload } = useApi<{ rows: TRow[]; totals: any }>(withPeriod("/reports/taxes", qs), [qs]);
   const [open, setOpen] = useState(false); const [editing, setEditing] = useState<TRow | null>(null);
   const empty = { name: "", period: "", accrued_date: "", debt_start: 0, accrued: 0, paid: 0, manual_override: false };
   const [form, setForm] = useState<any>(empty); const [err, setErr] = useState(""); const [saving, setSaving] = useState(false);
@@ -41,7 +43,10 @@ export default function Taxes() {
   return (
     <div>
       <SectionTitle title="Налоги" sub="Начислено рассчитывается автоматически из операций (как в Excel). Долг = начало + начислено − оплачено"
-        right={can("taxes:create") && <button className="btn-primary" onClick={() => { setEditing(null); setForm(empty); setErr(""); setOpen(true); }}>+ Налог</button>} />
+        right={<div className="flex flex-wrap items-center gap-2">
+          <PeriodPicker />
+          {can("taxes:create") && <button className="btn-primary" onClick={() => { setEditing(null); setForm(empty); setErr(""); setOpen(true); }}>+ Налог</button>}
+        </div>} />
       <Card className="!p-0 overflow-hidden">
         {loading || !data ? <Spinner /> : !data.rows.length ? <EmptyState text="Нет данных" /> : (
           <div className="overflow-x-auto"><table className="w-full min-w-[820px]">

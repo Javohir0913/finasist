@@ -875,12 +875,13 @@ async def _taxes_core(db: AsyncSession, year, month, on: date | None = None):
             (p_start is None or (t.accrued_date and t.accrued_date >= p_start))
             and (p_end is None or (t.accrued_date and t.accrued_date <= p_end))
         )
-        # Ручная перебивка авто-налога: только в отчёте ЗА МЕСЯЦ (p_start не
-        # None — «на дату» баланса override не трогаем, иначе он «прилипнет»
-        # ко всем будущим периодам вместо авто) и только пока дата начисления
-        # попадает в запрошенный месяц — со следующим месяцем автоматически
-        # снова считается авто, руками ничего выключать не нужно.
-        override_active = bool(t.manual_override) and p_start is not None and manual_in_period
+        # Ручная перебивка авто-налога: не в режиме «на дату» баланса (`on`
+        # задан) — там перебивка не трогается, иначе она «прилипла» бы ко
+        # всем будущим периодам вместо авто. В отчёте за месяц или без
+        # периода (свод) — учитывается, но только пока дата начисления
+        # попадает в запрошенный период (manual_in_period) — со следующим
+        # месяцем (другая дата) автоматически снова считается авто.
+        override_active = bool(t.manual_override) and on is None and manual_in_period
         # авто-начисление уже собрано по датам первичных документов
         if override_active:
             accrued = float(t.accrued or 0)
