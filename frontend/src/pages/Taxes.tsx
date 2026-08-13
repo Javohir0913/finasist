@@ -124,7 +124,13 @@ export default function Taxes() {
         {manual && (
           <div className="mt-3 grid grid-cols-2 gap-4 rounded-xl border border-accent/25 bg-accent/[0.06] p-3.5">
             <Field label="Начислено *"><MoneyInput value={form.accrued} onChange={(v) => setForm({ ...form, accrued: v })} /></Field>
-            <Field label="Оплачено"><MoneyInput value={form.paid || 0} onChange={(v) => setForm({ ...form, paid: v })} /></Field>
+            {auto ? (
+              <Field label="Оплачено">
+                <input className="input opacity-60" disabled value="считается автоматически" />
+              </Field>
+            ) : (
+              <Field label="Оплачено"><MoneyInput value={form.paid || 0} onChange={(v) => setForm({ ...form, paid: v })} /></Field>
+            )}
             <div className="col-span-2">
               <Field label="Дата начисления *">
                 <input type="date" min={minOpenDate || undefined} className="input" value={form.accrued_date || ""}
@@ -139,7 +145,7 @@ export default function Taxes() {
 
         <p className="text-xs text-slate-500 mt-3">
           {auto && form.manual_override
-            ? "Перебивка авто-расчёта: начислено/оплачено этого месяца берутся отсюда, а не из документов. Со следующего месяца (другая дата начисления) снова считается авто — ничего выключать не нужно."
+            ? "Перебивка авто-расчёта: «Начислено» этого месяца берётся отсюда, а не из документов. «Оплачено» всегда остаётся живым — новый платёж по документам появится сразу, даже при включённой перебивке. Со следующего месяца (другая дата начисления) «Начислено» тоже снова считается авто — ничего выключать не нужно."
             : manual
             ? "Ручной налог: и «начислено», и «долг на начало» учитываются по указанной дате."
             : "Этот налог считается автоматически — начисление и его дата берутся из первичных документов (продажи, услуги, приход ТМЦ, ведомость зарплаты). Дата вручную не нужна."}

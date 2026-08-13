@@ -894,12 +894,13 @@ async def _taxes_core(db: AsyncSession, year, month, on: date | None = None):
             accrued = acc_auto if acc_auto is not None else (
                 float(t.accrued or 0) if manual_in_period else 0.0
             )
-        if override_active:
-            paid = float(t.paid or 0)
-        else:
-            paid = await paid_of(t.name)          # по дате платёжной операции
-            if paid == 0 and manual_in_period:
-                paid = float(t.paid or 0)         # запасной вариант — ручное
+        # «Оплачено» НЕ замораживается перебивкой — это реальные деньги по
+        # документам (см. paid_of), и новый платёж должен появиться сразу.
+        # Иначе перебивка «Начислено» тихо спрятала бы реально проведённую
+        # оплату, добавленную уже ПОСЛЕ того, как перебивку включили.
+        paid = await paid_of(t.name)          # по дате платёжной операции
+        if paid == 0 and manual_in_period:
+            paid = float(t.paid or 0)         # запасной вариант — ручное
         # долг на начало — по той же дате: до неё его ещё не было
         start = float(t.debt_start or 0) if opening_active(t.accrued_date, p_end) else 0.0
         end = round(start + accrued - paid, 2)
