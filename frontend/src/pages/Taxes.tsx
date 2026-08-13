@@ -98,44 +98,40 @@ export default function Taxes() {
         <div className="grid grid-cols-2 gap-4">
           <div className="col-span-2"><Field label="Наименование налога"><input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} disabled={!!editing} /></Field></div>
           <Field label="Долг на начало"><MoneyInput value={form.debt_start} onChange={(v) => setForm({ ...form, debt_start: v })} /></Field>
-          {manual ? (
-            <Field label="Начислено"><MoneyInput value={form.accrued} onChange={(v) => setForm({ ...form, accrued: v })} /></Field>
-          ) : (
+          {!manual && (
             <Field label="Начислено">
               <input className="input opacity-60" disabled value="считается автоматически" />
             </Field>
           )}
-          {auto && (
-            <div className="col-span-2 flex items-center gap-2">
-              <input id="taxoverride" type="checkbox" checked={!!form.manual_override}
-                onChange={(e) => setForm({ ...form, manual_override: e.target.checked })}
-                className="h-4 w-4 accent-accent" />
-              <label htmlFor="taxoverride" className="text-sm text-slate-300">
-                Qo'lda kiritish (bu oy uchun avto-hisobni bekor qilish)
-              </label>
-            </div>
-          )}
-          {manual && (
-            <>
-              <Field label="Оплачено"><MoneyInput value={form.paid || 0} onChange={(v) => setForm({ ...form, paid: v })} /></Field>
-              <div className="col-span-2">
-                <Field label="Дата начисления *">
-                  <input type="date" min={minOpenDate || undefined} className="input" value={form.accrued_date || ""}
-                    onChange={(e) => setForm({ ...form, accrued_date: e.target.value })} />
-                  {dateMissing ? (
-                    <p className="mt-1 text-xs text-amber-300">
-                      Обязательно: без даты налог попадёт в каждый период отчёта
-                    </p>
-                  ) : (
-                    <p className="mt-1 text-xs text-slate-500">
-                      сумма попадёт только в тот период, куда входит эта дата
-                    </p>
-                  )}
-                </Field>
-              </div>
-            </>
-          )}
         </div>
+
+        {auto && (
+          <label htmlFor="taxoverride" className="mt-4 flex items-center gap-2 cursor-pointer">
+            <input id="taxoverride" type="checkbox" checked={!!form.manual_override}
+              onChange={(e) => setForm({ ...form, manual_override: e.target.checked })}
+              className="h-4 w-4 accent-accent" />
+            <span className="text-sm text-slate-300">
+              Qo'lda kiritish <span className="text-slate-500">(bu oy uchun avto-hisobni bekor qilish)</span>
+            </span>
+          </label>
+        )}
+
+        {manual && (
+          <div className="mt-3 grid grid-cols-2 gap-4 rounded-xl border border-accent/25 bg-accent/[0.06] p-3.5">
+            <Field label="Начислено *"><MoneyInput value={form.accrued} onChange={(v) => setForm({ ...form, accrued: v })} /></Field>
+            <Field label="Оплачено"><MoneyInput value={form.paid || 0} onChange={(v) => setForm({ ...form, paid: v })} /></Field>
+            <div className="col-span-2">
+              <Field label="Дата начисления *">
+                <input type="date" min={minOpenDate || undefined} className="input" value={form.accrued_date || ""}
+                  onChange={(e) => setForm({ ...form, accrued_date: e.target.value })} />
+                <p className="mt-1 text-xs text-slate-500">
+                  Сумма попадёт только в тот период (месяц), куда входит эта дата — например, для июля укажите любое июльское число.
+                </p>
+              </Field>
+            </div>
+          </div>
+        )}
+
         <p className="text-xs text-slate-500 mt-3">
           {auto && form.manual_override
             ? "Перебивка авто-расчёта: начислено/оплачено этого месяца берутся отсюда, а не из документов. Со следующего месяца (другая дата начисления) снова считается авто — ничего выключать не нужно."
@@ -143,6 +139,11 @@ export default function Taxes() {
             ? "Ручной налог: и «начислено», и «долг на начало» учитываются по указанной дате."
             : "Этот налог считается автоматически — начисление и его дата берутся из первичных документов (продажи, услуги, приход ТМЦ, ведомость зарплаты). Дата вручную не нужна."}
         </p>
+        {dateMissing && (
+          <div className="mt-3 rounded-xl bg-amber-500/12 border border-amber-500/25 text-amber-300 text-sm px-3.5 py-2.5">
+            Чтобы сохранить — укажите «Дата начисления» выше. Без неё кнопка «Сохранить» не активна.
+          </div>
+        )}
         <div className="flex justify-end gap-2 mt-6"><button className="btn-ghost" onClick={() => setOpen(false)}>Отмена</button><button className="btn-primary" onClick={save} disabled={saving || !form.name || dateMissing}
           title={dateMissing ? "Укажите дату начисления" : undefined}>Сохранить</button></div>
       </Modal>
