@@ -19,7 +19,7 @@ from ..ledger import (
     org_fx_documents,
     rate_on,
 )
-from ..periods import setting_value
+from ..periods import period_of, setting_value
 from ..stock import stock_value_at
 from ..rates import fx_enabled, get_rates
 from ..models import (
@@ -875,13 +875,18 @@ async def _taxes_core(db: AsyncSession, year, month, on: date | None = None):
             (p_start is None or (t.accrued_date and t.accrued_date >= p_start))
             and (p_end is None or (t.accrued_date and t.accrued_date <= p_end))
         )
-        # Ручная перебивка авто-налога: не в режиме «на дату» баланса (`on`
-        # задан) — там перебивка не трогается, иначе она «прилипла» бы ко
-        # всем будущим периодам вместо авто. В отчёте за месяц или без
-        # периода (свод) — учитывается, но только пока дата начисления
-        # попадает в запрошенный период (manual_in_period) — со следующим
-        # месяцем (другая дата) автоматически снова считается авто.
-        override_active = bool(t.manual_override) and on is None and manual_in_period
+        # Ручная перебивка авто-налога должна попадать и в Баланс (он вызывает
+        # этот же расчёт «на дату» — `on` задан, накопительно с открытым
+        # началом). Обычный manual_in_period тут не годится: у него p_start
+        # всегда None, значит совпадение «дата начисления <= on» держалось бы
+        # ВЕЧНО, во всех будущих месяцах. Перебивке нужен другой критерий —
+        # СОВПАДЕНИЕ МЕСЯЦА: только пока баланс смотрят на конец того же
+        # месяца, что стоит в дате начисления. Уже в следующем месяце снова
+        # считается авто, руками ничего выключать не нужно.
+        override_period_match = (
+            period_of(on) == period_of(t.accrued_date) if on is not None else manual_in_period
+        )
+        override_active = bool(t.manual_override) and override_period_match
         # авто-начисление уже собрано по датам первичных документов
         if override_active:
             accrued = float(t.accrued or 0)
